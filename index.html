@@ -1803,23 +1803,21 @@ function loadData(){
     if(r) roster=JSON.parse(r);
     if(g) games=JSON.parse(g);
   }catch(e){}
-  // Firestoreから最新データを読み込み
-  db.collection('data').doc('main').get()
-    .then(docSnap=>{
-      if(docSnap.exists){
-        const data=docSnap.data();
-        if(data.roster) roster=data.roster;
-        if(data.games) games=data.games;
-        // localStorageも最新化
-        try{
-          localStorage.setItem('atoms_roster',JSON.stringify(roster));
-          localStorage.setItem('atoms_games',JSON.stringify(games));
-        }catch(e){}
-        // すでにログイン済みならUIを更新
-        if(role){renderGames();renderRoster();}
-      }
-    })
-    .catch(e=>console.error('Firestore読み込みエラー:', e));
+  // Firestoreからリアルタイム同期（他ブラウザの変更も即反映）
+  db.collection('data').doc('main').onSnapshot(docSnap=>{
+    if(docSnap.exists){
+      const data=docSnap.data();
+      if(data.roster) roster=data.roster;
+      if(data.games) games=data.games;
+      // localStorageも最新化
+      try{
+        localStorage.setItem('atoms_roster',JSON.stringify(roster));
+        localStorage.setItem('atoms_games',JSON.stringify(games));
+      }catch(e){}
+      // すでにログイン済みならUIを更新
+      if(role){renderGames();renderRoster();}
+    }
+  }, e=>console.error('Firestore読み込みエラー:', e));
 }
 document.addEventListener('DOMContentLoaded',loadData);
 </script>
