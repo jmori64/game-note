@@ -1091,7 +1091,7 @@ function renderPitcherTable(){
     const tdGS='padding:3px 5px;background:#fffdf0;border:0.5px solid #ddd;text-align:center;font-size:10px;';
     const tdCS='padding:3px 5px;background:#f0f7ff;border:0.5px solid #ddd;text-align:center;font-size:10px;';
     let a1rows='';
-    mRows.forEach(m=>{
+    (role==='coach'?mRows.filter(m=>m.k==='pip'):mRows).forEach(m=>{
       a1rows+='<tr><td style="'+tdLS+'">'+m.l+'</td>';
       INNINGS.forEach(i=>{a1rows+='<td style="'+tdGS+'">'+calcM(pastByInn[i])[m.k]+'</td>';});
       a1rows+='<td style="'+tdGS+'font-weight:700;">'+calcM(pastTot)[m.k]+'</td>';
@@ -1139,8 +1139,8 @@ function renderPitcherTable(){
       </div>
       ${area1Html}
       ${area2Html}
-      <div style="font-weight:600;font-size:12px;color:#333;margin-bottom:4px;">③ 基礎数値</div>
-      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      ${role==='coach'?'':'<div style="font-weight:600;font-size:12px;color:#333;margin-bottom:4px;">③ 基礎数値</div>'}
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;${role==='coach'?'display:none;':''}">
       <table style="border-collapse:collapse;font-size:12px;min-width:100%;border:0.5px solid #ddd;">
         <thead><tr>
           <th style="padding:5px 6px;background:#f5f5f5;border:0.5px solid #ddd;text-align:left;min-width:52px;position:sticky;left:0;">項目</th>
