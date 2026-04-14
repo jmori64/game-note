@@ -336,7 +336,7 @@ let pinDigitsCoach=[];
 const PIN_CORRECT_COACH='555';
 let numpadTarget={pitcherIdx:null,row:null,inning:null};
 let numpadVal='';
-const PITCHER_ROWS=['球数','与四球','奪三振','WP','被安打','投球回','WHIP','K/BB'];
+const PITCHER_ROWS=['球数','投球回','与四球','死球','奪三振','被安打','自責点','WP','ゴロ','フライ','WHIP','K/BB'];
 const INNINGS=[1,2,3,4,5,6,7];
 
 let roster=[];
@@ -1005,7 +1005,7 @@ function renderPitcherTable(){
 
     // 現在の試合より前の試合の累計
     const prevGames2=games.filter(pg=>pg.date<g.date);
-    const ps={ip:0,bb:0,h:0,k:0,wp:0,pitches:0,cnt:0};
+    const ps={ip:0,bb:0,hbp:0,h:0,k:0,wp:0,pitches:0,er:0,gb:0,fb:0,cnt:0};
     prevGames2.forEach(pg=>{
       if(!pg.pitchers) return;
       const pp=pg.pitchers.find(p=>p.name===pt.name);
@@ -1014,13 +1014,20 @@ function renderPitcherTable(){
       INNINGS.forEach(i=>{
         ps.ip+=parseFloat(pp.data['投球回']?.[i])||0;
         ps.bb+=parseInt(pp.data['与四球']?.[i])||0;
+        ps.hbp+=parseInt(pp.data['死球']?.[i])||0;
         ps.h+=parseInt(pp.data['被安打']?.[i])||0;
         ps.k+=parseInt(pp.data['奪三振']?.[i])||0;
         ps.pitches+=parseInt(pp.data['球数']?.[i])||0;
+        ps.er+=parseInt(pp.data['自責点']?.[i])||0;
+        ps.gb+=parseInt(pp.data['ゴロ']?.[i])||0;
+        ps.fb+=parseInt(pp.data['フライ']?.[i])||0;
       });
     });
-    const pWHIP=ps.ip>0?((ps.bb+ps.h)/ps.ip).toFixed(2):'-';
-    const pKBB=ps.bb>0?(ps.k/ps.bb).toFixed(2):'∞';
+    const pWHIP=ps.ip>0?((ps.bb+ps.hbp+ps.h)/ps.ip).toFixed(2):'-';
+    const pKBB=(ps.bb+ps.hbp)>0?(ps.k/(ps.bb+ps.hbp)).toFixed(2):'∞';
+    const pPIP=ps.ip>0?Math.round(ps.pitches/ps.ip):'-';
+    const pHIP=ps.ip>0?(ps.h/ps.ip).toFixed(2):'-';
+    const pGBpct=(ps.gb+ps.fb)>0?Math.round(ps.gb/(ps.gb+ps.fb)*100):'-';
     const pIP=Math.round(ps.ip*100)/100;
 
     html+=`<div style="margin-bottom:1.5rem;">
@@ -1031,13 +1038,21 @@ function renderPitcherTable(){
       ${ps.cnt>0?`<div style="background:#f0f7ff;border-left:3px solid #185fa5;border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:8px;font-size:12px;">
         <span style="font-weight:500;color:#185fa5;">前${ps.cnt}試合までの累計</span>
         <div style="margin-top:6px;display:flex;gap:16px;color:#1a1a1a;flex-wrap:wrap;">
-          <span>一イニング平均投球数 <b>${ps.ip>0?Math.round(ps.pitches/ps.ip):'-'}</b></span>
-          <span>一試合平均投球数 <b>${Math.round(ps.pitches/ps.cnt)}</b></span>
-          ${role==='manager'?`<span>WHIP <b>${pWHIP}</b></span><span>K/BB <b>${pKBB}</b></span>`:''}
+          <span>P/IP <b>${pPIP}</b></span>
+          <span>一試合平均球数 <b>${ps.cnt>0?Math.round(ps.pitches/ps.cnt):'-'}</b></span>
+          ${role==='manager'?`
+          <span>WHIP+HBP <b>${pWHIP}</b></span>
+          <span>H/IP <b>${pHIP}</b></span>
+          <span>ER <b>${ps.er}</b></span>
+          <span>K/(BB+HBP) <b>${pKBB}</b></span>
+          <span>GB% <b>${pGBpct}${pGBpct!=='-'?'%':''}</b></span>`:''}
         </div>
         ${role==='manager'?`<div style="margin-top:6px;color:#888;font-size:11px;line-height:1.6;">
-          WHIP：1イニングあたり何人出塁を許したか。1.50以下が目安。<br>
-          K/BB：四球1つに対して何個三振を取れるか。1.00以上が安定の目安。
+          P/IP：1イニング平均球数。少ないほど効率的。<br>
+          WHIP+HBP：(四球+死球+被安打)÷投球回。1.50以下が目安。<br>
+          H/IP：1イニング平均被安打。低いほど◎。<br>
+          K/(BB+HBP)：三振÷(四球+死球)。1.00以上が安定の目安。<br>
+          GB%：ゴロ÷(ゴロ+フライ)。高いほど芯を外せている。
         </div>`:''}
       </div>`:''}
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
@@ -1051,12 +1066,13 @@ function renderPitcherTable(){
           const isCalc=row==='WHIP'||row==='K/BB';
           const isIP=row==='投球回';
           const bb=totals['与四球']||0;
+          const hbp=totals['死球']||0;
           const h=totals['被安打']||0;
           const k=totals['奪三振']||0;
-          const ip=INNINGS.filter(inn=>pt.data['球数']&&pt.data['球数'][inn]>0).length||1;
+          const ip=INNINGS.reduce((s,i)=>s+(parseFloat(pt.data['投球回']?.[i])||0),0)||1;
           let calcVal='';
           if(row==='WHIP') calcVal=((bb+h)/ip).toFixed(2);
-          if(row==='K/BB') calcVal=bb>0?(k/bb).toFixed(2):'∞';
+          if(row==='K/BB') calcVal=(bb+hbp)>0?(k/(bb+hbp)).toFixed(2):'∞';
           return `<tr>
             <td style="padding:5px 6px;background:#f5f5f5;border:0.5px solid #ddd;font-weight:500;color:#555;position:sticky;left:0;">${row}</td>
             ${isCalc
