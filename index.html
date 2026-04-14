@@ -346,6 +346,12 @@ const INNINGS=[1,2,3,4,5,6,7];
 let roster=[];
 let games=[];
 let dataVersion=0; // 楽観的ロック用バージョン番号
+let currentGameComments=[]; // コメントのローカルキャッシュ（別コレクション）
+let commentsUnsubscribe=null; // onSnapshotリスナー解除用
+
+function generateId(){
+  return Date.now().toString(36)+Math.random().toString(36).substr(2,9);
+}
 
 // ── PIN ──
 function showPin(){
@@ -525,6 +531,7 @@ function saveCopyGame(){
   if(!date||!opp){alert('日付と対戦相手を入力してください');return;}
   const src=games[copySourceIdx];
   const newGame={
+    gameId:generateId(),
     date,opp,
     order:JSON.parse(JSON.stringify(src.order||[])),
     pitchers:[],
@@ -567,7 +574,7 @@ function saveGame(){
   const category=document.getElementById('g-category').value;
   const venue=document.getElementById('g-venue').value.trim();
   if(!date||!opp){alert('日付と対戦相手を入力してください');return;}
-  games.push({date,opp,category,venue,result:'',order:[],pitchers:[],score:{batting:'先攻',atoms:[],opp:[],startTime:'',duration:80},comments:[]});
+  games.push({gameId:generateId(),date,opp,category,venue,result:'',order:[],pitchers:[],score:{batting:'先攻',atoms:[],opp:[],startTime:'',duration:80},comments:[]});
   closeModal('mo-game');renderGames();saveData();
 }
 
@@ -600,13 +607,11 @@ function renderRoster(){
         <span class="pos-pill">${p.stamenPos||'-'}</span>`;
     }
     wrapper.appendChild(row);
-    // コメントボタン
-    const playerComments=games.filter(g=>g.comments&&g.comments.some(c=>c.playerName===p.name))
-      .flatMap(g=>g.comments.filter(c=>c.playerName===p.name).map(c=>({game:g,comment:c})));
+    // コメントボタン（クリック時にFirestoreから取得）
     const commentBtn=document.createElement('button');
     commentBtn.className='sbtn';
-    commentBtn.style.cssText='margin:0 0 8px 8px;font-size:11px;'+(playerComments.length>0?'color:#185fa5;border-color:#185fa5;':'');
-    commentBtn.textContent=`コメント${playerComments.length>0?' ('+playerComments.length+')':''}`;
+    commentBtn.style.cssText='margin:0 0 8px 8px;font-size:11px;';
+    commentBtn.textContent='コメント';
     commentBtn.addEventListener('click',()=>showPlayerComments(p.name));
     if(role==='manager'){
       const commentRow=document.createElement('div');
@@ -675,6 +680,27 @@ function autoFillOrder(gameIdx){
 }
 function openGame(idx){
   currentGameIdx=idx;fieldSelected=null;
+  // 前のコメントリスナーを解除
+  if(commentsUnsubscribe){commentsUnsubscribe();commentsUnsubscribe=null;}
+  currentGameComments=[];
+  // gameIdがない古い試合はここで割り当て
+  const g0=games[idx];
+  if(!g0.gameId){g0.gameId=generateId();saveData();}
+  // コメントをリアルタイム購読（30人同時でも競合しない）
+  commentsUnsubscribe=db.collection('comments')
+    .where('gameId','==',g0.gameId)
+    .onSnapshot(snap=>{
+      // クライアント側でcreatedAt順にソート（Firestoreのcompositeインデックス不要）
+      currentGameComments=snap.docs
+        .map(d=>({id:d.id,...d.data()}))
+        .sort((a,b)=>{
+          const ta=a.createdAt?a.createdAt.toMillis():0;
+          const tb=b.createdAt?b.createdAt.toMillis():0;
+          return ta-tb;
+        });
+      const wrap=document.getElementById('gt-comment');
+      if(wrap&&wrap.style.display!=='none') renderComments();
+    }, err=>console.error('コメント読み込みエラー:',err));
   document.getElementById('s-main').style.display='none';
   document.getElementById('s-game').style.display='block';
   const b=document.getElementById('role-badge2');
@@ -706,6 +732,8 @@ function openGame(idx){
 }
 function backToMain(){
   fieldSelected=null;orderSelected=null;
+  if(commentsUnsubscribe){commentsUnsubscribe();commentsUnsubscribe=null;}
+  currentGameComments=[];
   document.getElementById('s-game').style.display='none';
   document.getElementById('s-main').style.display='block';
   renderGames();
@@ -1445,7 +1473,6 @@ function setScoreBatting(val){
 function renderComments(){
   const g=games[currentGameIdx];
   if(!g) return;
-  if(!g.comments) g.comments=[];
   const wrap=document.getElementById('comment-content');
   const isManager=role==='manager';
   let html='';
@@ -1482,11 +1509,12 @@ function renderComments(){
     </div>`;
   }
 
-  const visibleComments=isManager?g.comments:g.comments.filter(c=>c.type==='Good'||!c.type);
+  const allComments=[...currentGameComments].reverse();
+  const visibleComments=isManager?allComments:allComments.filter(c=>c.type==='Good'||!c.type);
   if(visibleComments.length===0){
     html+='<p class="notice">コメントがありません</p>';
   } else {
-    html+=[...visibleComments].reverse().map((c,i)=>`
+    html+=visibleComments.map(c=>`
       <div class="card" style="margin-bottom:.75rem;padding:.875rem 1rem;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <div>
@@ -1495,7 +1523,7 @@ function renderComments(){
             ${c.author?`<span style="font-size:12px;color:#888;margin-left:6px;">from ${c.author}</span>`:''}
             ${c.postedAt?`<span style="font-size:11px;color:#bbb;margin-left:6px;">${c.postedAt}</span>`:''}
           </div>
-          ${isManager?`<div style="display:flex;gap:4px;"><button class="sbtn" onclick="editComment(${visibleComments.length-1-i})">編集</button><button class="sbtn sbtn-danger" onclick="deleteComment(${visibleComments.length-1-i})">削除</button></div>`:''}
+          ${isManager?`<div style="display:flex;gap:4px;"><button class="sbtn" onclick="editComment('${c.id}')">編集</button><button class="sbtn sbtn-danger" onclick="deleteComment('${c.id}')">削除</button></div>`:''}
         </div>
         <p style="font-size:14px;color:#1a1a1a;line-height:1.6;white-space:pre-wrap;">${c.text}</p>
       </div>`).join('');
@@ -1524,15 +1552,26 @@ function addComment(){
   const playerNum=pidx?roster[parseInt(pidx)].num:'';
   const authorName=author||'匿名';
   const postedAt=new Date().toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-  g.comments.push({playerName,playerNum,author:authorName,type:_commentType,text,postedAt});
+  // Firestoreの独立したドキュメントに保存（競合なし・30人同時可）
+  db.collection('comments').add({
+    gameId:g.gameId,
+    gameDate:g.date,
+    gameOpp:g.opp,
+    playerName,playerNum,
+    author:authorName,
+    type:_commentType,
+    text,
+    postedAt,
+    createdAt:firebase.firestore.FieldValue.serverTimestamp()
+  }).catch(err=>console.error('コメント保存エラー:',err));
   _commentType='';
-  saveData();
-  renderComments();
+  // UIはonSnapshotが自動更新するため手動renderComments()不要
+  document.getElementById('comment-text').value='';
 }
 
-function editComment(idx){
-  const g=games[currentGameIdx];
-  const c=g.comments[idx];
+function editComment(commentId){
+  const c=currentGameComments.find(x=>x.id===commentId);
+  if(!c) return;
   const ov=document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:300;';
   const box=document.createElement('div');
@@ -1579,44 +1618,51 @@ function editComment(idx){
     if(!type){alert('Good/Improveを選んでください');return;}
     if(!author){alert('コメントする人を選んでください');return;}
     if(!text){alert('コメントを入力してください');return;}
-    g.comments[idx].author=author;
-    g.comments[idx].type=type;
-    g.comments[idx].text=text;
-    saveData();renderComments();
+    db.collection('comments').doc(commentId).update({author,type,text})
+      .catch(err=>console.error('コメント編集エラー:',err));
     ov.remove();
   });
 }
 
-function deleteComment(idx){
+function deleteComment(commentId){
   confirmDelete('コメントを削除','このコメントを削除しますか？',()=>{
-    games[currentGameIdx].comments.splice(idx,1);saveData();renderComments();
+    db.collection('comments').doc(commentId).delete()
+      .catch(err=>console.error('コメント削除エラー:',err));
   });
 }
 function showPlayerComments(playerName){
-  const playerComments=games.filter(g=>g.comments&&g.comments.some(c=>c.playerName===playerName))
-    .flatMap(g=>g.comments.filter(c=>c.playerName===playerName).map(c=>({game:g,comment:c})));
+  // Firestoreからその選手への全コメントを取得（試合をまたいで検索）
   const ov=document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:300;';
-  let inner='';
-  if(playerComments.length===0){
-    inner='<p style="font-size:14px;color:#888;text-align:center;padding:1rem 0;">コメントがありません</p>';
-  } else {
-    inner=playerComments.map(({game,comment})=>`
-      <div style="margin-bottom:10px;padding:10px 12px;background:#f5f5f5;border-radius:8px;border-left:3px solid #185fa5;">
-        <p style="font-size:12px;color:#185fa5;font-weight:500;margin-bottom:4px;">${game.date} vs ${game.opp}</p>
-        <p style="font-size:14px;color:#1a1a1a;line-height:1.6;white-space:pre-wrap;">${comment.text}</p>
-      </div>`).join('');
-  }
+  ov.className='ov-overlay';
   ov.innerHTML=`
     <div style="background:#fff;border-radius:16px 16px 0 0;padding:1.25rem;width:100%;max-width:440px;max-height:70vh;overflow-y:auto;">
       <p style="font-size:15px;font-weight:500;color:#1a1a1a;margin-bottom:12px;">${playerName} へのコメント</p>
-      ${inner}
-      <button onclick="this.closest('.ov-overlay').remove()" style="width:100%;padding:12px;margin-top:8px;border:0.5px solid #ccc;border-radius:10px;background:none;font-size:14px;color:#666;cursor:pointer;">閉じる</button>
+      <p style="font-size:13px;color:#888;text-align:center;">読み込み中...</p>
+      <button style="width:100%;padding:12px;margin-top:8px;border:0.5px solid #ccc;border-radius:10px;background:none;font-size:14px;color:#666;cursor:pointer;">閉じる</button>
     </div>`;
-  ov.className='ov-overlay';
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
   ov.querySelector('button').addEventListener('click',()=>ov.remove());
   document.body.appendChild(ov);
+  db.collection('comments').where('playerName','==',playerName).get().then(snap=>{
+    const inner_div=ov.querySelector('div');
+    if(!inner_div) return;
+    let inner='';
+    if(snap.empty){
+      inner='<p style="font-size:14px;color:#888;text-align:center;padding:1rem 0;">コメントがありません</p>';
+    } else {
+      inner=snap.docs.map(d=>{const c=d.data();return`
+        <div style="margin-bottom:10px;padding:10px 12px;background:#f5f5f5;border-radius:8px;border-left:3px solid #185fa5;">
+          <p style="font-size:12px;color:#185fa5;font-weight:500;margin-bottom:4px;">${c.gameDate||''} vs ${c.gameOpp||''}</p>
+          <p style="font-size:14px;color:#1a1a1a;line-height:1.6;white-space:pre-wrap;">${c.text}</p>
+        </div>`;}).join('');
+    }
+    inner_div.innerHTML=`
+      <p style="font-size:15px;font-weight:500;color:#1a1a1a;margin-bottom:12px;">${playerName} へのコメント</p>
+      ${inner}
+      <button style="width:100%;padding:12px;margin-top:8px;border:0.5px solid #ccc;border-radius:10px;background:none;font-size:14px;color:#666;cursor:pointer;">閉じる</button>`;
+    inner_div.querySelector('button').addEventListener('click',()=>ov.remove());
+  }).catch(err=>{console.error('選手コメント取得エラー:',err);});
 }
 
 function confirmDelete(title, desc, onConfirm){
@@ -1719,22 +1765,20 @@ function exportPitcherExcel(){
 }
 
 function exportCommentExcel(){
-  const wb=XLSX.utils.book_new();
-  const wsData=[['選手名','試合日','対戦相手','コメントする人','種別','コメント']];
-  roster.forEach(p=>{
-    const pcs=games.filter(g=>g.comments&&g.comments.some(c=>c.playerName===p.name))
-      .flatMap(g=>g.comments.filter(c=>c.playerName===p.name).map(c=>({game:g,comment:c})));
-    if(!pcs.length) return;
-    pcs.forEach(({game,comment})=>{
-      wsData.push([p.name,game.date,game.opp,comment.author||'',comment.type||'',comment.text]);
+  // Firestoreから全コメントを取得してExcelに出力
+  db.collection('comments').get().then(snap=>{
+    if(snap.empty){alert('コメントがありません');return;}
+    const wb=XLSX.utils.book_new();
+    const wsData=[['選手名','試合日','対戦相手','コメントする人','種別','コメント']];
+    snap.docs.forEach(d=>{
+      const c=d.data();
+      wsData.push([c.playerName||'',c.gameDate||'',c.gameOpp||'',c.author||'',c.type||'',c.text||'']);
     });
-    wsData.push([]);
-  });
-  if(wsData.length<=1){alert('コメントがありません');return;}
-  const ws=XLSX.utils.aoa_to_sheet(wsData);
-  ws['!cols']=[{wch:12},{wch:12},{wch:15},{wch:12},{wch:8},{wch:40}];
-  XLSX.utils.book_append_sheet(wb,ws,'コメント一覧');
-  XLSX.writeFile(wb,'コメント一覧.xlsx');
+    const ws=XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols']=[{wch:12},{wch:12},{wch:15},{wch:12},{wch:8},{wch:40}];
+    XLSX.utils.book_append_sheet(wb,ws,'コメント一覧');
+    XLSX.writeFile(wb,'コメント一覧.xlsx');
+  }).catch(err=>{console.error('コメントExportエラー:',err);alert('エクスポートに失敗しました');});
 }
 
 function exportScoreExcel(){
