@@ -201,6 +201,7 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
     <input type="text" id="g-category" placeholder="試合分類（例：練習試合、公式戦）"/>
     <input type="date" id="g-date"/>
     <input type="text" id="g-opp" placeholder="対戦相手"/>
+    <input type="text" id="g-venue" placeholder="球場名（任意）"/>
     <div class="mbtns">
       <button class="cancel-btn" onclick="closeModal('mo-game')">キャンセル</button>
       <button class="btn-primary" style="margin-bottom:0;" onclick="saveGame()">保存</button>
@@ -229,6 +230,7 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
     <input type="text" id="ge-category" placeholder="試合分類（例：練習試合、公式戦）"/>
     <input type="date" id="ge-date"/>
     <input type="text" id="ge-opp" placeholder="対戦相手"/>
+    <input type="text" id="ge-venue" placeholder="球場名（任意）"/>
     <input type="text" id="ge-result" placeholder="結果（例：旭0-6ア）"/>
     <div class="mbtns">
       <button class="cancel-btn" onclick="closeModal('mo-game-edit')">キャンセル</button>
@@ -452,19 +454,30 @@ function renderGames(){
     info.innerHTML=`${g.category?`<div class="game-sub">${g.category}</div>`:''}<div class="game-title">vs ${g.opp}</div><div class="game-sub">${g.date} &nbsp;·&nbsp; ${(g.order||[]).length}名登録</div>`;
     info.addEventListener('click',()=>openGame(i_orig));
     card.appendChild(info);
-    if(scoreInline){
+    if(scoreInline||g.venue){
       const scoreWrap=document.createElement('div');
-      scoreWrap.style.cssText='display:flex;align-items:center;gap:6px;flex-shrink:0;margin:0 16px 0 0;';
-      if(winLoss){
-        const wlEl=document.createElement('span');
-        wlEl.style.cssText=`font-size:13px;font-weight:700;color:${winColor};`;
-        wlEl.textContent=winLoss;
-        scoreWrap.appendChild(wlEl);
+      scoreWrap.style.cssText='display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0;margin:0 16px 0 0;gap:2px;';
+      if(scoreInline){
+        const scoreRow=document.createElement('div');
+        scoreRow.style.cssText='display:flex;align-items:center;gap:6px;';
+        if(winLoss){
+          const wlEl=document.createElement('span');
+          wlEl.style.cssText=`font-size:13px;font-weight:700;color:${winColor};`;
+          wlEl.textContent=winLoss;
+          scoreRow.appendChild(wlEl);
+        }
+        const scoreEl=document.createElement('span');
+        scoreEl.style.cssText=`font-size:17px;font-weight:700;color:${color2};`;
+        scoreEl.textContent=scoreInline;
+        scoreRow.appendChild(scoreEl);
+        scoreWrap.appendChild(scoreRow);
       }
-      const scoreEl=document.createElement('span');
-      scoreEl.style.cssText=`font-size:17px;font-weight:700;color:${color2};`;
-      scoreEl.textContent=scoreInline;
-      scoreWrap.appendChild(scoreEl);
+      if(g.venue){
+        const venueEl=document.createElement('div');
+        venueEl.style.cssText='font-size:11px;color:#888;text-align:right;';
+        venueEl.textContent=g.venue;
+        scoreWrap.appendChild(venueEl);
+      }
       card.appendChild(scoreWrap);
     }
     if(role==='manager'){
@@ -525,6 +538,7 @@ function openEditGameModal(idx){
   document.getElementById('ge-date').value=games[idx].date;
   document.getElementById('ge-opp').value=games[idx].opp;
   document.getElementById('ge-category').value=games[idx].category||'';
+  document.getElementById('ge-venue').value=games[idx].venue||'';
   document.getElementById('ge-result').value=games[idx].result||'';
   document.getElementById('mo-game-edit').dataset.idx=idx;
   openModal('mo-game-edit');
@@ -537,6 +551,7 @@ function saveEditGame(){
   games[idx].date=date;
   games[idx].opp=opp;
   games[idx].category=document.getElementById('ge-category').value;
+  games[idx].venue=document.getElementById('ge-venue').value.trim();
   games[idx].result=document.getElementById('ge-result').value.trim();
   closeModal('mo-game-edit');
   // ヘッダー再描画
@@ -549,8 +564,9 @@ function saveGame(){
   const date=document.getElementById('g-date').value;
   const opp=document.getElementById('g-opp').value.trim();
   const category=document.getElementById('g-category').value;
+  const venue=document.getElementById('g-venue').value.trim();
   if(!date||!opp){alert('日付と対戦相手を入力してください');return;}
-  games.push({date,opp,category,result:'',order:[],pitchers:[],score:{batting:'先攻',atoms:[],opp:[],startTime:'',duration:80},comments:[]});
+  games.push({date,opp,category,venue,result:'',order:[],pitchers:[],score:{batting:'先攻',atoms:[],opp:[],startTime:'',duration:80},comments:[]});
   closeModal('mo-game');renderGames();saveData();
 }
 
@@ -967,11 +983,11 @@ function onFieldPlayerClick(idx){
     fieldSelected=null;
     renderField();
   } else {
-    // 名前・背番号・ポジションごと入れ替え（打順番号はそのまま）
+    // ポジションのみ入れ替え（打順・選手はそのまま）
     const g=games[currentGameIdx];
-    const tmp={...g.order[fieldSelected]};
-    g.order[fieldSelected]={...g.order[idx]};
-    g.order[idx]=tmp;
+    const tmpPos=g.order[fieldSelected].pos;
+    g.order[fieldSelected].pos=g.order[idx].pos;
+    g.order[idx].pos=tmpPos;
     fieldSelected=null;
     renderField();renderOrder();saveData();
   }
