@@ -336,7 +336,7 @@ let pinDigitsCoach=[];
 const PIN_CORRECT_COACH='555';
 let numpadTarget={pitcherIdx:null,row:null,inning:null};
 let numpadVal='';
-const PITCHER_ROWS=['球数','投球回','与四球','死球','奪三振','被安打','自責点','WP','ゴロ','フライ','WHIP','K/BB'];
+const PITCHER_ROWS=['球数','投球回','与四球','死球','奪三振','被安打','自責点','ゴロ','ゴロ安打','全打球'];
 const INNINGS=[1,2,3,4,5,6,7];
 
 let roster=[];
@@ -982,7 +982,7 @@ function addPitcherRow(){
   const pidx=parseInt(document.getElementById('pt-player').value);
   const p=roster[pidx];
   if(g.pitchers.find(x=>x.name===p.name)){alert('すでに追加されています');return;}
-  g.pitchers.push({name:p.name,num:p.num,data:{'球数':{},'与四球':{},'奪三振':{},'WP':{},'被安打':{},'投球回':{}}});
+  g.pitchers.push({name:p.name,num:p.num,data:{'球数':{},'与四球':{},'奪三振':{},'被安打':{},'投球回':{}}});
   closeModal('mo-pitcher');renderPitcherTable();saveData();
 }
 function renderPitcherTable(){
@@ -1005,7 +1005,7 @@ function renderPitcherTable(){
 
     // 現在の試合より前の試合の累計
     const prevGames2=games.filter(pg=>pg.date<g.date);
-    const ps={ip:0,bb:0,hbp:0,h:0,k:0,wp:0,pitches:0,er:0,gb:0,fb:0,cnt:0};
+    const ps={ip:0,bb:0,hbp:0,h:0,k:0,pitches:0,er:0,gb:0,gb_hit:0,total_batted:0,cnt:0};
     prevGames2.forEach(pg=>{
       if(!pg.pitchers) return;
       const pp=pg.pitchers.find(p=>p.name===pt.name);
@@ -1020,14 +1020,15 @@ function renderPitcherTable(){
         ps.pitches+=parseInt(pp.data['球数']?.[i])||0;
         ps.er+=parseInt(pp.data['自責点']?.[i])||0;
         ps.gb+=parseInt(pp.data['ゴロ']?.[i])||0;
-        ps.fb+=parseInt(pp.data['フライ']?.[i])||0;
+        ps.gb_hit+=parseInt(pp.data['ゴロ安打']?.[i])||0;
+        ps.total_batted+=parseInt(pp.data['全打球']?.[i])||0;
       });
     });
     const pWHIP=ps.ip>0?((ps.bb+ps.hbp+ps.h)/ps.ip).toFixed(2):'-';
     const pKBB=(ps.bb+ps.hbp)>0?(ps.k/(ps.bb+ps.hbp)).toFixed(2):'∞';
     const pPIP=ps.ip>0?Math.round(ps.pitches/ps.ip):'-';
     const pHIP=ps.ip>0?(ps.h/ps.ip).toFixed(2):'-';
-    const pGBpct=(ps.gb+ps.fb)>0?Math.round(ps.gb/(ps.gb+ps.fb)*100):'-';
+    const pGBpct=(ps.total_batted+ps.h)>0?Math.round((ps.gb+ps.gb_hit)/(ps.total_batted+ps.h)*100):'-';
     const pIP=Math.round(ps.ip*100)/100;
 
     html+=`<div style="margin-bottom:1.5rem;">
@@ -1052,7 +1053,7 @@ function renderPitcherTable(){
           WHIP+HBP：(四球+死球+被安打)÷投球回。1.50以下が目安。<br>
           H/IP：1イニング平均被安打。低いほど◎。<br>
           K/(BB+HBP)：三振÷(四球+死球)。1.00以上が安定の目安。<br>
-          GB%：ゴロ÷(ゴロ+フライ)。高いほど芯を外せている。
+          GB%：(ゴロアウト+ゴロ安打)÷(全打球アウト+被安打)。高いほど芯を外せている。
         </div>`:''}
       </div>`:''}
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
@@ -1063,21 +1064,10 @@ function renderPitcherTable(){
           <th style="padding:5px 8px;background:#eaf3de;border:0.5px solid #ddd;text-align:center;min-width:36px;font-weight:500;">計</th>
         </tr></thead>
         <tbody>${(role==='manager'?PITCHER_ROWS:['球数']).map(row=>{
-          const isCalc=row==='WHIP'||row==='K/BB';
           const isIP=row==='投球回';
-          const bb=totals['与四球']||0;
-          const hbp=totals['死球']||0;
-          const h=totals['被安打']||0;
-          const k=totals['奪三振']||0;
-          const ip=INNINGS.reduce((s,i)=>s+(parseFloat(pt.data['投球回']?.[i])||0),0)||1;
-          let calcVal='';
-          if(row==='WHIP') calcVal=((bb+h)/ip).toFixed(2);
-          if(row==='K/BB') calcVal=(bb+hbp)>0?(k/(bb+hbp)).toFixed(2):'∞';
           return `<tr>
             <td style="padding:5px 6px;background:#f5f5f5;border:0.5px solid #ddd;font-weight:500;color:#555;position:sticky;left:0;">${row}</td>
-            ${isCalc
-              ? INNINGS.map(()=>`<td style="padding:5px 8px;border:0.5px solid #ddd;text-align:center;color:#bbb;">-</td>`).join('')
-              : isIP
+            ${isIP
               ? INNINGS.map(inn=>{
                   const ipVal=pt.data[row][inn];
                   const ipDisp=ipVal!==undefined?ipVal:'';
@@ -1092,7 +1082,7 @@ function renderPitcherTable(){
                   return `<td ${pca} style="padding:5px 8px;border:0.5px solid #ddd;text-align:center;color:#1a1a1a;${pcs}">${val}</td>`;
                 }).join('')
             }
-            <td style="padding:5px 8px;background:#eaf3de;border:0.5px solid #ddd;text-align:center;font-weight:500;color:#3b6d11;">${isCalc?calcVal:isIP?(Math.round(INNINGS.reduce((s,i)=>s+(parseFloat(pt.data[row]?.[i])||0),0)*100)/100):(totals[row]||0)}</td>
+            <td style="padding:5px 8px;background:#eaf3de;border:0.5px solid #ddd;text-align:center;font-weight:500;color:#3b6d11;">${isIP?(Math.round(INNINGS.reduce((s,i)=>s+(parseFloat(pt.data[row]?.[i])||0),0)*100)/100):(totals[row]||0)}</td>
           </tr>`;
         }).join('')}
         </tbody>
@@ -1588,23 +1578,18 @@ function exportPitcherExcel(){
   const wb=XLSX.utils.book_new();
   const INNINGS=[1,2,3,4,5,6,7];
   const INN_LABELS=['1回','2回','3回','4回','5回','6回','サドン'];
-  const ROWS=['球数','与四球','奪三振','WP','被安打','WHIP','K/BB'];
+  const ROWS=['球数','与四球','奪三振','被安打'];
   games.forEach(g=>{
     if(!g.pitchers||g.pitchers.length===0) return;
     const wsData=[['投手','項目',...INN_LABELS,'計']];
     g.pitchers.forEach(pt=>{
       if(!pt.data) return;
       const totals={};
-      ['球数','与四球','奪三振','WP','被安打'].forEach(row=>{
+      ROWS.forEach(row=>{
         totals[row]=INNINGS.map(i=>parseInt(pt.data[row]?.[i]||0)||0).reduce((a,b)=>a+b,0);
       });
-      const bb=totals['与四球']||0,h=totals['被安打']||0,k=totals['奪三振']||0;
-      const ip=INNINGS.filter(i=>pt.data['球数']?.[i]>0).length||1;
-      totals['WHIP']=((bb+h)/ip).toFixed(2);
-      totals['K/BB']=bb>0?(k/bb).toFixed(2):'∞';
       ROWS.forEach((row,ri)=>{
-        const isCalc=row==='WHIP'||row==='K/BB';
-        const vals=isCalc?INN_LABELS.map(()=>'-'):INNINGS.map(i=>pt.data[row]?.[i]??'');
+        const vals=INNINGS.map(i=>pt.data[row]?.[i]??'');
         wsData.push([ri===0?`${pt.num} ${pt.name}`:'',row,...vals,totals[row]]);
       });
       wsData.push([]);
