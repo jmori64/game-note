@@ -1,0 +1,1711 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Game Note | アトムズ</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;min-height:100vh;}
+.app{max-width:440px;margin:0 auto;padding:1rem;min-height:100vh;}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;}
+.header h1{font-size:17px;font-weight:500;color:#1a1a1a;}
+.badge{font-size:11px;padding:3px 9px;border-radius:8px;}
+.badge-manager{background:#e6f1fb;color:#185fa5;}
+.badge-coach{background:#f1f1f1;color:#666;}
+.nav{display:flex;margin-bottom:1.25rem;border:0.5px solid #ddd;border-radius:8px;overflow:hidden;background:#fff;}
+.nav button{flex:1;padding:8px 4px;font-size:12px;background:none;border:none;border-right:0.5px solid #ddd;color:#666;cursor:pointer;}
+.nav button:last-child{border-right:none;}
+.nav button.active{background:#f1f1f1;color:#1a1a1a;font-weight:500;}
+.card{background:#fff;border:0.5px solid #ddd;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem;}
+.row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid #eee;}
+.row:last-child{border-bottom:none;}
+.num{font-size:12px;color:#888;width:18px;text-align:center;}
+.pname{flex:1;font-size:14px;color:#1a1a1a;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pos-pill{font-size:11px;padding:2px 7px;border-radius:8px;background:#f1f1f1;color:#666;}
+.pos-select{font-size:12px;padding:2px 4px;border-radius:8px;border:0.5px solid #ccc;background:#f5f5f5;color:#666;cursor:pointer;width:44px;flex-shrink:0;}
+.sbtn{font-size:11px;padding:3px 8px;border-radius:8px;border:0.5px solid #ccc;background:none;color:#666;cursor:pointer;}
+.sbtn:hover{background:#f1f1f1;}
+.sbtn-danger{border-color:#f09595;color:#a32d2d;}
+.field-wrap{width:100%;aspect-ratio:500/360;background:#2d5a1b;border-radius:12px;overflow:hidden;margin-bottom:.5rem;}
+.field-wrap svg{width:100%;height:100%;}
+.btn-primary{width:100%;padding:9px;background:#1a1a1a;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;margin-bottom:8px;}
+.btn-primary:hover{opacity:.85;}
+.btn-role{width:100%;padding:16px;border:0.5px solid #ddd;border-radius:12px;cursor:pointer;background:#fff;color:#1a1a1a;margin-bottom:10px;text-align:left;display:flex;align-items:center;gap:14px;}
+.btn-role:hover{background:#f5f5f5;}
+.role-icon{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;flex-shrink:0;}
+.role-label{font-size:15px;font-weight:500;color:#1a1a1a;}
+.role-desc{font-size:12px;color:#888;margin-top:2px;}
+.notice{font-size:12px;color:#888;background:#f1f1f1;padding:7px 12px;border-radius:8px;text-align:center;margin-bottom:8px;}
+.tab-bar{display:flex;margin-bottom:1rem;border-bottom:0.5px solid #ddd;overflow-x:auto;}
+.tab{padding:7px 12px;font-size:12px;cursor:pointer;border-bottom:2px solid transparent;color:#888;background:none;border-top:none;border-left:none;border-right:none;white-space:nowrap;}
+.tab.active{color:#1a1a1a;border-bottom-color:#1a1a1a;font-weight:500;}
+.game-card{background:#fff;border:0.5px solid #ddd;border-radius:12px;padding:.875rem 1rem;margin-bottom:.75rem;cursor:pointer;}
+.game-card:hover{background:#f5f5f5;}
+.game-title{font-size:14px;font-weight:500;color:#1a1a1a;}
+.game-sub{font-size:12px;color:#888;margin-top:2px;}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);align-items:center;justify-content:center;z-index:100;}
+.modal-overlay.open{display:flex;}
+.modal{background:#fff;border-radius:12px;padding:1.25rem;width:340px;max-width:94%;max-height:90vh;overflow-y:auto;}
+.modal h3{font-size:15px;font-weight:500;margin-bottom:12px;color:#1a1a1a;}
+.mbtns{display:flex;gap:8px;margin-top:10px;}
+.mbtns button{flex:1;}
+.cancel-btn{border:0.5px solid #ccc;background:none;border-radius:8px;padding:8px;cursor:pointer;color:#666;font-size:14px;}
+input[type=text],input[type=number],input[type=date],select,textarea{padding:8px 10px;border:0.5px solid #ccc;border-radius:8px;font-size:14px;width:100%;margin-bottom:8px;background:#fff;color:#1a1a1a;}
+.pin-key{padding:14px;border:0.5px solid #ddd;border-radius:12px;background:#fff;font-size:20px;font-weight:500;color:#1a1a1a;cursor:pointer;}
+.pin-key:hover{background:#f5f5f5;}
+.pin-key:active{background:#e8e8e8;}
+.order-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid #eee;}
+.order-row:last-child{border-bottom:none;}
+.order-row.dragging{opacity:0.4;}
+.order-row.drag-over{border-top:2px solid #185fa5;}
+.drag-handle{color:#bbb;font-size:16px;cursor:grab;padding:0 4px;user-select:none;flex-shrink:0;}
+.drag-handle:active{cursor:grabbing;}
+</style>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div class="app">
+
+<!-- ログイン -->
+<div id="s-login">
+  <div style="margin:2.5rem 0 2rem;">
+    <p style="font-size:22px;font-weight:500;color:#1a1a1a;margin-bottom:6px;">Game Note</p>
+  </div>
+  <button class="btn-role" id="btn-coach-role" onclick="showPinCoach()">
+    <div class="role-icon" style="background:#fee2e2;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+      </svg></div>
+    <div><div class="role-label">チーム関係者</div><div class="role-desc">データの閲覧ができます。みんなで応援しましょう！</div></div>
+  </button>
+  <div id="pin-screen-coach" style="display:none;margin-top:1.5rem;">
+    <p style="font-size:13px;color:#888;margin-bottom:1rem;text-align:center;">暗証番号を入力してください</p>
+    <div style="display:flex;justify-content:center;gap:12px;margin-bottom:1.25rem;">
+      <div id="pin-c1" style="width:52px;height:64px;border:0.5px solid #ddd;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:500;color:#1a1a1a;">-</div>
+      <div id="pin-c2" style="width:52px;height:64px;border:0.5px solid #ddd;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:500;color:#1a1a1a;">-</div>
+      <div id="pin-c3" style="width:52px;height:64px;border:0.5px solid #ddd;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:500;color:#1a1a1a;">-</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:240px;margin:0 auto;">
+      <button class="pin-key" onclick="pinInputCoach(1)">1</button><button class="pin-key" onclick="pinInputCoach(2)">2</button><button class="pin-key" onclick="pinInputCoach(3)">3</button>
+      <button class="pin-key" onclick="pinInputCoach(4)">4</button><button class="pin-key" onclick="pinInputCoach(5)">5</button><button class="pin-key" onclick="pinInputCoach(6)">6</button>
+      <button class="pin-key" onclick="pinInputCoach(7)">7</button><button class="pin-key" onclick="pinInputCoach(8)">8</button><button class="pin-key" onclick="pinInputCoach(9)">9</button>
+      <button class="pin-key" onclick="pinClearCoach()" style="font-size:13px;color:#888;">C</button>
+      <button class="pin-key" onclick="pinInputCoach(0)">0</button>
+      <button class="pin-key" onclick="pinBackCoach()" style="font-size:16px;">⌫</button>
+    </div>
+    <p id="pin-error-coach" style="font-size:12px;color:#a32d2d;text-align:center;margin-top:12px;display:none;">暗証番号が違います</p>
+    <button onclick="hidePinCoach()" style="display:block;margin:16px auto 0;font-size:13px;color:#888;background:none;border:none;cursor:pointer;">← 戻る</button>
+  </div>
+  <button class="btn-role" id="btn-manager-role" onclick="showPin()">
+    <div class="role-icon" style="background:#f1f1f1;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+      </svg></div>
+    <div><div class="role-label">代表、ベンチコーチ、スコアラー</div><div class="role-desc">データの作成・編集ができます</div></div>
+  </button>
+  <div id="pin-screen" style="display:none;margin-top:1.5rem;">
+    <p style="font-size:13px;color:#888;margin-bottom:1rem;text-align:center;">暗証番号を入力してください</p>
+    <div style="display:flex;justify-content:center;gap:12px;margin-bottom:1.25rem;">
+      <div id="pin-d1" style="width:52px;height:64px;border:0.5px solid #ddd;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:500;color:#1a1a1a;">-</div>
+      <div id="pin-d2" style="width:52px;height:64px;border:0.5px solid #ddd;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:500;color:#1a1a1a;">-</div>
+      <div id="pin-d3" style="width:52px;height:64px;border:0.5px solid #ddd;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:500;color:#1a1a1a;">-</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:240px;margin:0 auto;">
+      <button class="pin-key" onclick="pinInput(1)">1</button><button class="pin-key" onclick="pinInput(2)">2</button><button class="pin-key" onclick="pinInput(3)">3</button>
+      <button class="pin-key" onclick="pinInput(4)">4</button><button class="pin-key" onclick="pinInput(5)">5</button><button class="pin-key" onclick="pinInput(6)">6</button>
+      <button class="pin-key" onclick="pinInput(7)">7</button><button class="pin-key" onclick="pinInput(8)">8</button><button class="pin-key" onclick="pinInput(9)">9</button>
+      <button class="pin-key" onclick="pinClear()" style="font-size:13px;color:#888;">C</button>
+      <button class="pin-key" onclick="pinInput(0)">0</button>
+      <button class="pin-key" onclick="pinBack()" style="font-size:16px;">⌫</button>
+    </div>
+    <p id="pin-error" style="font-size:12px;color:#a32d2d;text-align:center;margin-top:12px;display:none;">暗証番号が違います</p>
+    <button onclick="hidePin()" style="display:block;margin:16px auto 0;font-size:13px;color:#888;background:none;border:none;cursor:pointer;">← 戻る</button>
+  </div>
+</div>
+
+<!-- メイン -->
+<div id="s-main" style="display:none;">
+  <div class="header"><button onclick="backToLogin()" style="font-size:13px;color:#888;background:none;border:none;cursor:pointer;">← 戻る</button><div style="display:flex;align-items:center;gap:6px;"><span class="badge" id="role-badge"></span><button onclick="openExportMenu()" style="font-size:11px;padding:3px 8px;border:0.5px solid #ccc;border-radius:8px;background:none;color:#666;cursor:pointer;" id="btn-excel">Excel</button><button onclick="exportData()" style="font-size:11px;padding:3px 8px;border:0.5px solid #ccc;border-radius:8px;background:none;color:#666;cursor:pointer;" id="btn-export" style="display:none;">Backup</button><label id="btn-import-label" style="font-size:11px;padding:3px 8px;border:0.5px solid #ccc;border-radius:8px;background:none;color:#666;cursor:pointer;display:none;">Restore<input type="file" id="import-file" accept=".json" style="display:none;" onchange="importData(event)"></label></div></div>
+  <div class="nav">
+    <button class="active" onclick="gotoPage('games',this)">試合一覧</button>
+    <button id="nav-roster-btn" onclick="gotoPage('roster',this)">選手登録</button>
+  </div>
+  <div id="p-games">
+    <div id="div-game-add" style="display:none;"><button class="btn-primary" onclick="openGameModal()">＋ 試合を追加</button></div>
+    <div id="game-list"></div>
+    <p id="no-games" class="notice" style="display:none;">試合がまだありません</p>
+  </div>
+  <div id="p-roster" style="display:none;">
+    <div id="div-roster-add" style="display:none;"><button class="btn-primary" onclick="openPlayerModal(-1)">＋ 選手を追加</button></div>
+    <div class="card" id="roster-list"></div>
+    <div id="div-roster-notice" style="display:none;"><p class="notice">閲覧モード</p></div>
+  </div>
+</div>
+
+<!-- 試合詳細 -->
+<div id="s-game" style="display:none;">
+  <div class="header">
+    <button onclick="backToMain()" style="font-size:13px;color:#888;background:none;border:none;cursor:pointer;">← 戻る</button>
+    <span class="badge" id="role-badge2"></span>
+  </div>
+  <div id="game-info-header" style="margin-bottom:1rem;"></div>
+  <div class="tab-bar">
+    <button class="tab active" onclick="switchGameTab('field',this)">フィールド</button>
+    <button class="tab" onclick="switchGameTab('order',this)">メンバー表</button>
+    <button class="tab" onclick="switchGameTab('score',this)">スコア</button>
+    <button class="tab" id="tab-pitcher-btn" onclick="switchGameTab('pitcher',this)">投手記録</button>
+    <button class="tab" id="tab-comment-btn" onclick="switchGameTab('comment',this)">コメント</button>
+  </div>
+  <div id="gt-field">
+    <div class="field-wrap">
+      <svg id="field-svg" viewBox="0 0 500 360" xmlns="http://www.w3.org/2000/svg">
+        <rect x="0" y="0" width="500" height="360" fill="#2d5a1b"/>
+        <polygon points="250,248 165,198 250,148 335,198" fill="#8B6914" opacity="0.45"/>
+        <polygon points="238,242 262,242 262,255 250,263 238,255" fill="#c9a84c" opacity="0.65"/>
+        <circle cx="250" cy="148" r="9" fill="#c9a84c" opacity="0.65"/>
+        <circle cx="165" cy="198" r="9" fill="#c9a84c" opacity="0.65"/>
+        <circle cx="335" cy="198" r="9" fill="#c9a84c" opacity="0.65"/>
+        <circle cx="250" cy="198" r="11" fill="#8B6914" opacity="0.55"/>
+        <g id="field-players-g"></g>
+      </svg>
+    </div>
+    <p id="field-swap-hint" style="font-size:12px;color:#888;text-align:center;margin-bottom:.75rem;display:none;"></p>
+    <div id="field-bench"></div>
+  </div>
+  <div id="gt-order" style="display:none;">
+    <div id="div-order-add" style="display:none;margin-bottom:.75rem;"><button class="sbtn" onclick="openAddOrderModal()">＋ 打順に追加</button></div>
+    <div class="card" id="order-list"></div>
+    <div id="div-order-notice" style="display:none;margin-top:8px;"><p class="notice">閲覧モード（代表、ベンチコーチ、スコアラーのみ編集可）</p></div>
+    <div id="order-bench"></div>
+  </div>
+  <div id="gt-score" style="display:none;">
+    <div id="score-content"></div>
+  </div>
+
+  <div id="gt-comment" style="display:none;">
+    <div id="comment-content"></div>
+  </div>
+
+  <div id="gt-pitcher" style="display:none;">
+    <div id="pitcher-table-wrap"></div>
+  </div>
+</div>
+
+<!-- 試合追加モーダル -->
+<div class="modal-overlay" id="mo-game">
+  <div class="modal">
+    <h3>試合を追加</h3>
+    <input type="date" id="g-date"/>
+    <input type="text" id="g-opp" placeholder="対戦相手"/>
+    <div class="mbtns">
+      <button class="cancel-btn" onclick="closeModal('mo-game')">キャンセル</button>
+      <button class="btn-primary" style="margin-bottom:0;" onclick="saveGame()">保存/button>
+    </div>
+  </div>
+</div>
+
+<!-- 試合コピーモーダル -->
+<div class="modal-overlay" id="mo-game-copy">
+  <div class="modal">
+    <h3>試合をコピーして作成</h3>
+    <p style="font-size:12px;color:#888;margin-bottom:8px;">オーダーをコピーします。スコア・投手記録はリセットされます。</p>
+    <input type="date" id="gc-date"/>
+    <input type="text" id="gc-opp" placeholder="対戦相手"/>
+    <div class="mbtns">
+      <button class="cancel-btn" onclick="closeModal('mo-game-copy')">キャンセル</button>
+      <button class="btn-primary" style="margin-bottom:0;" onclick="saveCopyGame()">作成</button>
+    </div>
+  </div>
+</div>
+
+<!-- 試合編集モーダル -->
+<div class="modal-overlay" id="mo-game-edit">
+  <div class="modal">
+    <h3>試合を編集</h3>
+    <input type="date" id="ge-date"/>
+    <input type="text" id="ge-opp" placeholder="対戦相手"/>
+    <input type="text" id="ge-result" placeholder="結果（例：旭0-6ア）"/>
+    <div class="mbtns">
+      <button class="cancel-btn" onclick="closeModal('mo-game-edit')">キャンセル</button>
+      <button class="btn-primary" style="margin-bottom:0;" onclick="saveEditGame()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 選手追加・編集モーダル -->
+<div class="modal-overlay" id="mo-player">
+  <div class="modal">
+    <h3 id="mp-title">選手を追加</h3>
+    <input type="text" id="mp-name" placeholder="選手名"/>
+    <input type="text" id="mp-num" placeholder="背番号"/>
+    <label style="font-size:12px;color:#888;display:block;margin-bottom:4px;">スタメンポジション（基本守備位置）</label>
+    <select id="mp-stamen-pos">
+      <option value="">なし</option>
+      <option value="投">投手</option><option value="捕">捕手</option>
+      <option value="一">一塁手</option><option value="二">二塁手</option>
+      <option value="三">三塁手</option><option value="遊">遊撃手</option>
+      <option value="左">左翼手</option><option value="中">中堅手</option>
+      <option value="右">右翼手</option>
+    </select>
+
+    <div class="mbtns">
+      <button class="cancel-btn" onclick="closeModal('mo-player')">キャンセル</button>
+      <button class="btn-primary" style="margin-bottom:0;" onclick="savePlayer()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 打順追加モーダル -->
+<div class="modal-overlay" id="mo-order">
+  <div class="modal">
+    <h3>打順に追加</h3>
+    <select id="oo-player"></select>
+    <p id="oo-pos-preview" style="font-size:12px;color:#888;margin-bottom:8px;padding:4px 0;"></p>
+    <div class="mbtns">
+      <button class="cancel-btn" onclick="closeModal('mo-order')">キャンセル</button>
+      <button class="btn-primary" style="margin-bottom:0;" onclick="saveOrderEntry()">追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- 投手追加モーダル -->
+<div class="modal-overlay" id="mo-pitcher">
+  <div class="modal">
+    <h3>投手を追加</h3>
+    <label style="font-size:12px;color:#888;display:block;margin-bottom:4px;">投手を選択</label>
+    <select id="pt-player" style="width:100%;margin-bottom:12px;"></select>
+    <div class="mbtns">
+      <button class="cancel-btn" onclick="closeModal('mo-pitcher')">キャンセル</button>
+      <button class="btn-primary" style="margin-bottom:0;" onclick="addPitcherRow()">追加</button>
+    </div>
+  </div>
+</div>
+
+<!-- 数字入力モーダル -->
+<div class="modal-overlay" id="mo-numpad">
+  <div class="modal" style="max-width:280px;">
+    <h3 id="numpad-title">入力</h3>
+    <div style="display:flex;justify-content:center;margin-bottom:1rem;">
+      <div id="numpad-display" style="width:80px;height:56px;border:0.5px solid #ddd;border-radius:12px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:500;color:#1a1a1a;">-</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:220px;margin:0 auto;">
+      <button class="pin-key" onclick="numpadInput(1)">1</button><button class="pin-key" onclick="numpadInput(2)">2</button><button class="pin-key" onclick="numpadInput(3)">3</button>
+      <button class="pin-key" onclick="numpadInput(4)">4</button><button class="pin-key" onclick="numpadInput(5)">5</button><button class="pin-key" onclick="numpadInput(6)">6</button>
+      <button class="pin-key" onclick="numpadInput(7)">7</button><button class="pin-key" onclick="numpadInput(8)">8</button><button class="pin-key" onclick="numpadInput(9)">9</button>
+      <button class="pin-key" onclick="numpadClear()" style="font-size:13px;color:#888;">C</button>
+      <button class="pin-key" onclick="numpadInput(0)">0</button>
+      <button class="pin-key" onclick="numpadBack()" style="font-size:16px;">⌫</button>
+    </div>
+    <div class="mbtns" style="margin-top:12px;">
+      <button class="cancel-btn" onclick="closeModal('mo-numpad')">キャンセル</button>
+      <button class="btn-primary" style="margin-bottom:0;" onclick="numpadConfirm()">確定</button>
+    </div>
+  </div>
+</div>
+
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// Firebase 初期化
+const firebaseConfig = {
+  apiKey: "AIzaSyCGrzpdj1bw5hMHk2BUPU-saYuvOeBBIIo",
+  authDomain: "game-note-ccd33.firebaseapp.com",
+  projectId: "game-note-ccd33",
+  storageBucket: "game-note-ccd33.firebasestorage.app",
+  messagingSenderId: "327296540210",
+  appId: "1:327296540210:web:25c2a009055ea66231662b",
+  measurementId: "G-HH6C9DCR59"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+document.addEventListener('DOMContentLoaded', loadData);
+
+const POS_ORDER=['投','捕','一','二','三','遊','左','中','右'];
+const POS_OPTIONS=['投','捕','一','二','三','遊','左','中','右','DH'];
+const posCoords={'中':[250,50],'左':[100,100],'右':[400,100],'遊':[145,165],'二':[355,165],'投':[250,210],'三':[100,248],'一':[400,248],'捕':[250,305],'DH':null};
+
+let role='', currentGameIdx=-1, editPlayerIdx=-1;
+let fieldSelected=null;
+let pinDigits=[];
+const PIN_CORRECT='527';
+let pinDigitsCoach=[];
+const PIN_CORRECT_COACH='555';
+let numpadTarget={pitcherIdx:null,row:null,inning:null};
+let numpadVal='';
+const PITCHER_ROWS=['球数','与四球','奪三振','WP','被安打','投球回','WHIP','K/BB'];
+const INNINGS=[1,2,3,4,5,6,7];
+
+let roster=[];
+let games=[];
+
+// ── PIN ──
+function showPin(){
+  pinDigits=[];updatePinDisplay();
+  document.getElementById('pin-screen').style.display='block';
+  document.getElementById('pin-error').style.display='none';
+  document.getElementById('btn-manager-role').style.display='none';
+}
+function hidePin(){
+  document.getElementById('pin-screen').style.display='none';
+  document.getElementById('btn-manager-role').style.display='flex';
+}
+function pinInput(n){if(pinDigits.length>=3)return;pinDigits.push(n);updatePinDisplay();if(pinDigits.length===3)checkPin();}
+function pinBack(){pinDigits.pop();updatePinDisplay();document.getElementById('pin-error').style.display='none';}
+function pinClear(){pinDigits=[];updatePinDisplay();document.getElementById('pin-error').style.display='none';}
+function updatePinDisplay(){
+  ['pin-d1','pin-d2','pin-d3'].forEach((id,i)=>{document.getElementById(id).textContent=pinDigits[i]!==undefined?'●':'-';});
+}
+function checkPin(){
+  if(pinDigits.join('')===PIN_CORRECT){document.getElementById('pin-screen').style.display='none';doLogin('manager');}
+  else{document.getElementById('pin-error').style.display='block';setTimeout(()=>{pinDigits=[];updatePinDisplay();document.getElementById('pin-error').style.display='none';},900);}
+}
+
+function showPinCoach(){
+  pinDigitsCoach=[];updatePinDisplayCoach();
+  document.getElementById('pin-screen-coach').style.display='block';
+  document.getElementById('pin-error-coach').style.display='none';
+  document.getElementById('btn-coach-role').style.display='none';
+}
+function hidePinCoach(){
+  document.getElementById('pin-screen-coach').style.display='none';
+  document.getElementById('btn-coach-role').style.display='flex';
+}
+function pinInputCoach(n){if(pinDigitsCoach.length>=3)return;pinDigitsCoach.push(n);updatePinDisplayCoach();if(pinDigitsCoach.length===3)checkPinCoach();}
+function pinBackCoach(){pinDigitsCoach.pop();updatePinDisplayCoach();document.getElementById('pin-error-coach').style.display='none';}
+function pinClearCoach(){pinDigitsCoach=[];updatePinDisplayCoach();document.getElementById('pin-error-coach').style.display='none';}
+function updatePinDisplayCoach(){
+  ['pin-c1','pin-c2','pin-c3'].forEach((id,i)=>{document.getElementById(id).textContent=pinDigitsCoach[i]!==undefined?'●':'-';});
+}
+function checkPinCoach(){
+  if(pinDigitsCoach.join('')===PIN_CORRECT_COACH){document.getElementById('pin-screen-coach').style.display='none';doLogin('coach');}
+  else{document.getElementById('pin-error-coach').style.display='block';setTimeout(()=>{pinDigitsCoach=[];updatePinDisplayCoach();document.getElementById('pin-error-coach').style.display='none';},900);}
+}
+
+// ── LOGIN ──
+function doLogin(r){
+  role=r;
+  document.getElementById('s-login').style.display='none';
+  document.getElementById('s-main').style.display='block';
+  const b=document.getElementById('role-badge');
+  b.textContent=role==='manager'?'代表、ベンチコーチ、スコアラー':'関係者';
+  b.className='badge '+(role==='manager'?'badge-manager':'badge-coach');
+  document.getElementById('div-game-add').style.display=role==='manager'?'block':'none';
+  document.getElementById('btn-export').style.display=role==='manager'?'':'none';
+  document.getElementById('btn-import-label').style.display=role==='manager'?'':'none';
+  document.getElementById('btn-excel').style.display=role==='manager'?'':'none';
+  document.getElementById('div-roster-add').style.display=role==='manager'?'block':'none';
+  document.getElementById('div-roster-notice').style.display=role==='coach'?'block':'none';
+  document.getElementById('nav-roster-btn').style.display=role==='manager'?'':'none';
+  renderGames();renderRoster();
+  if(role==='coach'){
+    document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));
+    const gamesBtn=document.querySelector('.nav button');
+    if(gamesBtn) gamesBtn.classList.add('active');
+    document.getElementById('p-games').style.display='block';
+    document.getElementById('p-roster').style.display='none';
+  }
+}
+
+function gotoPage(page,el){
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('p-games').style.display=page==='games'?'block':'none';
+  document.getElementById('p-roster').style.display=page==='roster'?'block':'none';
+}
+
+// ── GAMES ──
+function renderGames(){
+  const list=document.getElementById('game-list');
+  const none=document.getElementById('no-games');
+  if(games.length===0){list.innerHTML='';none.style.display='block';return;}
+  none.style.display='none';
+  list.innerHTML='';
+  const sortedGames=[...games].map((g,i)=>({...g,_origIdx:i})).sort((a,b)=>b.date.localeCompare(a.date));
+  sortedGames.forEach((g,i)=>{
+    const i_orig=g._origIdx;
+    const card=document.createElement('div');
+    card.className='game-card';
+    card.style.display='flex';
+    card.style.alignItems='center';
+    card.style.justifyContent='space-between';
+    const info=document.createElement('div');
+    info.style.flex='1';
+    info.style.cursor='pointer';
+    const sc2=g.score||{atoms:[],opp:[]};
+    const aTotal=(sc2.atoms||[]).reduce((s,v)=>s+(parseInt(v)||0),0);
+    const oTotal=(sc2.opp||[]).reduce((s,v)=>s+(parseInt(v)||0),0);
+    const hasScore2=(sc2.atoms||[]).some(v=>v!==undefined&&v!=='');
+    const batting2=sc2.batting||'先攻';
+    const color2=aTotal>oTotal?'#185fa5':aTotal<oTotal?'#a32d2d':'#888';
+    const oppChar=g.opp.slice(0,1);
+    const scoreInline=hasScore2
+      ?(batting2==='先攻'?`ア${aTotal}-${oTotal}${oppChar}`:`${oppChar}${oTotal}-${aTotal}ア`)
+      :'';
+    info.innerHTML=`<div class="game-title">vs ${g.opp}</div><div class="game-sub">${g.date} &nbsp;·&nbsp; ${(g.order||[]).length}名登録</div>`;
+    info.addEventListener('click',()=>openGame(i_orig));
+    card.appendChild(info);
+    if(scoreInline){
+      const scoreEl=document.createElement('span');
+      scoreEl.style.cssText=`font-size:17px;font-weight:700;color:${color2};flex-shrink:0;margin:0 16px 0 0;`;
+      scoreEl.textContent=scoreInline;
+      card.appendChild(scoreEl);
+    }
+    if(role==='manager'){
+      const btnCopy=document.createElement('button');
+      btnCopy.className='sbtn';
+      btnCopy.textContent='コピー';
+      btnCopy.style.cssText='flex-shrink:0;margin-right:4px;';
+      btnCopy.addEventListener('click',(e)=>{e.stopPropagation();openCopyGameModal(i_orig);});
+      card.appendChild(btnCopy);
+      const btn=document.createElement('button');
+      btn.className='sbtn sbtn-danger';
+      btn.textContent='削除';
+      btn.style.flexShrink='0';
+      btn.addEventListener('click',(e)=>{e.stopPropagation();deleteGame(i_orig);});
+      card.appendChild(btn);
+    }
+    list.appendChild(card);
+  });
+}
+
+function deleteGame(idx){
+  const g=games[idx];
+  confirmDelete('試合を削除',`vs ${g.opp}（${g.date}）を削除しますか？`,()=>{
+    games.splice(idx,1);renderGames();saveData();
+  });
+}
+function openGameModal(){
+  const today=new Date().toISOString().split('T')[0];
+  document.getElementById('g-date').value=today;
+  document.getElementById('g-opp').value='';
+  openModal('mo-game');
+}
+let copySourceIdx=-1;
+function openCopyGameModal(idx){
+  copySourceIdx=idx;
+  const today=new Date().toISOString().split('T')[0];
+  document.getElementById('gc-date').value=today;
+  document.getElementById('gc-opp').value=games[idx].opp;
+  openModal('mo-game-copy');
+}
+function saveCopyGame(){
+  const date=document.getElementById('gc-date').value;
+  const opp=document.getElementById('gc-opp').value.trim();
+  if(!date||!opp){alert('日付と対戦相手を入力してください');return;}
+  const src=games[copySourceIdx];
+  const newGame={
+    date,opp,
+    order:JSON.parse(JSON.stringify(src.order||[])),
+    pitchers:[],
+    score:{batting:'先攻',atoms:[],opp:[]}
+  };
+  games.push(newGame);
+  closeModal('mo-game-copy');
+  renderGames();saveData();
+}
+
+function openEditGameModal(idx){
+  document.getElementById('ge-date').value=games[idx].date;
+  document.getElementById('ge-opp').value=games[idx].opp;
+  document.getElementById('ge-result').value=games[idx].result||'';
+  document.getElementById('mo-game-edit').dataset.idx=idx;
+  openModal('mo-game-edit');
+}
+function saveEditGame(){
+  const idx=parseInt(document.getElementById('mo-game-edit').dataset.idx);
+  const date=document.getElementById('ge-date').value;
+  const opp=document.getElementById('ge-opp').value.trim();
+  if(!date||!opp){alert('日付と対戦相手を入力してください');return;}
+  games[idx].date=date;
+  games[idx].opp=opp;
+  games[idx].result=document.getElementById('ge-result').value.trim();
+  closeModal('mo-game-edit');
+  // ヘッダー再描画
+  openGame(idx);
+  renderGames();
+  saveData();
+}
+
+function saveGame(){
+  const date=document.getElementById('g-date').value;
+  const opp=document.getElementById('g-opp').value.trim();
+  if(!date||!opp){alert('日付と対戦相手を入力してください');return;}
+  games.push({date,opp,result:'',order:[],pitchers:[],score:{batting:'先攻',atoms:[],opp:[],startTime:'',duration:80},comments:[]});
+  closeModal('mo-game');renderGames();saveData();
+}
+
+// ── ROSTER ──
+function renderRoster(){
+  const list=document.getElementById('roster-list');
+  if(roster.length===0){list.innerHTML='<p style="font-size:13px;color:#888;padding:.5rem 0;">選手が登録されていません</p>';return;}
+  list.innerHTML='';
+  roster.forEach((p,i)=>{
+    const wrapper=document.createElement('div');
+    wrapper.style.cssText='border-bottom:0.5px solid #eee;';
+    const row=document.createElement('div');
+    row.className='row';
+    row.style.borderBottom='none';
+    if(role==='manager'){
+      row.innerHTML=`
+        <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;">
+          <button onclick="moveRoster(${i},-1)" ${i===0?'disabled':''} style="padding:1px 6px;font-size:11px;border:0.5px solid #ccc;border-radius:4px;background:none;color:${i===0?'#ccc':'#666'};cursor:${i===0?'default':'pointer'};">↑</button>
+          <button onclick="moveRoster(${i},1)" ${i===roster.length-1?'disabled':''} style="padding:1px 6px;font-size:11px;border:0.5px solid #ccc;border-radius:4px;background:none;color:${i===roster.length-1?'#ccc':'#666'};cursor:${i===roster.length-1?'default':'pointer'};">↓</button>
+        </div>
+        <span class="num">${p.num}</span>
+        <span class="pname">${p.name}</span>
+        <span class="pos-pill">${p.stamenPos||'-'}</span>
+        <button class="sbtn" onclick="openPlayerModal(${i})">編集</button>
+        <button class="sbtn sbtn-danger" onclick="deletePlayer(${i})">削除</button>`;
+    } else {
+      row.innerHTML=`
+        <span class="num">${p.num}</span>
+        <span class="pname">${p.name}</span>
+        <span class="pos-pill">${p.stamenPos||'-'}</span>`;
+    }
+    wrapper.appendChild(row);
+    // コメントボタン
+    const playerComments=games.filter(g=>g.comments&&g.comments.some(c=>c.playerName===p.name))
+      .flatMap(g=>g.comments.filter(c=>c.playerName===p.name).map(c=>({game:g,comment:c})));
+    const commentBtn=document.createElement('button');
+    commentBtn.className='sbtn';
+    commentBtn.style.cssText='margin:0 0 8px 8px;font-size:11px;'+(playerComments.length>0?'color:#185fa5;border-color:#185fa5;':'');
+    commentBtn.textContent=`コメント${playerComments.length>0?' ('+playerComments.length+')':''}`;
+    commentBtn.addEventListener('click',()=>showPlayerComments(p.name));
+    if(role==='manager'){
+      const commentRow=document.createElement('div');
+      commentRow.style.cssText='padding:0 8px 8px;';
+      commentRow.appendChild(commentBtn);
+      wrapper.appendChild(commentRow);
+    }
+    list.appendChild(wrapper);
+  });
+}
+
+function moveRoster(idx, dir){
+  const newIdx=idx+dir;
+  if(newIdx<0||newIdx>=roster.length) return;
+  const tmp=roster[idx];
+  roster[idx]=roster[newIdx];
+  roster[newIdx]=tmp;
+  renderRoster();saveData();
+}
+function openPlayerModal(idx){
+  editPlayerIdx=idx;
+  document.getElementById('mp-title').textContent=idx===-1?'選手を追加':'選手を編集';
+  if(idx===-1){document.getElementById('mp-name').value='';document.getElementById('mp-num').value='';document.getElementById('mp-stamen-pos').value='';}
+  else{document.getElementById('mp-name').value=roster[idx].name;document.getElementById('mp-num').value=roster[idx].num;document.getElementById('mp-stamen-pos').value=roster[idx].stamenPos||'';}
+  openModal('mo-player');
+}
+function savePlayer(){
+  const name=document.getElementById('mp-name').value.trim();
+  const num=document.getElementById('mp-num').value.trim();
+  const stamenPos=document.getElementById('mp-stamen-pos').value;
+  if(!name){alert('選手名を入力してください');return;}
+  if(editPlayerIdx===-1) roster.push({name,num,stamenPos});
+  else roster[editPlayerIdx]={...roster[editPlayerIdx],name,num,stamenPos};
+  closeModal('mo-player');renderRoster();saveData();
+}
+function deletePlayer(idx){
+  const p=roster[idx];
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:300;';
+  overlay.innerHTML=`
+    <div style="background:#fff;border-radius:16px;padding:1.5rem;width:300px;max-width:90%;">
+      <p style="font-size:15px;font-weight:500;color:#1a1a1a;margin-bottom:8px;text-align:center;">選手を削除</p>
+      <p style="font-size:13px;color:#888;text-align:center;margin-bottom:1.25rem;">${p.name} を削除しますか？</p>
+      <div style="display:flex;gap:8px;">
+        <button id="del-p-cancel" style="flex:1;padding:12px;border:0.5px solid #ccc;border-radius:10px;background:none;font-size:14px;color:#666;cursor:pointer;">いいえ</button>
+        <button id="del-p-ok" style="flex:1;padding:12px;border:none;border-radius:10px;background:#a32d2d;color:#fff;font-size:14px;cursor:pointer;font-weight:500;">はい</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#del-p-cancel').addEventListener('click',()=>overlay.remove());
+  overlay.querySelector('#del-p-ok').addEventListener('click',()=>{
+    overlay.remove();
+    roster.splice(idx,1);renderRoster();saveData();
+  });
+}
+
+// ── OPEN GAME ──
+function autoFillOrder(gameIdx){
+  const g=games[gameIdx];
+  const starters=[];
+  POS_ORDER.forEach(pos=>{
+    const p=roster.find(r=>r.stamenPos===pos);
+    if(p) starters.push({name:p.name,pos:p.stamenPos});
+  });
+  g.order=starters.slice(0,9);
+}
+function openGame(idx){
+  currentGameIdx=idx;fieldSelected=null;
+  document.getElementById('s-main').style.display='none';
+  document.getElementById('s-game').style.display='block';
+  const b=document.getElementById('role-badge2');
+  b.textContent=role==='manager'?'代表、ベンチコーチ、スコアラー':'関係者';
+  b.className='badge '+(role==='manager'?'badge-manager':'badge-coach');
+  const g=games[idx];
+  document.getElementById('game-info-header').innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <p style="font-size:16px;font-weight:500;color:#1a1a1a;">vs ${g.opp}</p>
+        <p style="font-size:12px;color:#888;margin-top:2px;">${g.date}</p>
+      </div>
+      ${role==='manager'?`<button class="sbtn" onclick="openEditGameModal(${idx})">編集</button>`:''}
+    </div>`;
+  document.getElementById('div-order-add').style.display=role==='manager'?'block':'none';
+  const pitcherTab=document.getElementById('tab-pitcher-btn');
+  if(pitcherTab) pitcherTab.style.display='';
+  const commentTab=document.getElementById('tab-comment-btn');
+  if(commentTab) commentTab.style.display='';
+  document.getElementById('div-order-notice').style.display=role==='coach'?'block':'none';
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',i===0));
+  document.getElementById('gt-field').style.display='block';
+  document.getElementById('gt-order').style.display='none';
+  document.getElementById('gt-score').style.display='none';
+  document.getElementById('gt-comment').style.display='none';
+  document.getElementById('gt-pitcher').style.display='none';
+  if(g.order.length===0&&role==='manager') autoFillOrder(idx);
+  renderOrder();renderField();
+}
+function backToMain(){
+  fieldSelected=null;orderSelected=null;
+  document.getElementById('s-game').style.display='none';
+  document.getElementById('s-main').style.display='block';
+  renderGames();
+}
+function switchGameTab(tab,el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  if(el) el.classList.add('active');
+  document.getElementById('gt-field').style.display=tab==='field'?'block':'none';
+  document.getElementById('gt-order').style.display=tab==='order'?'block':'none';
+  document.getElementById('gt-score').style.display=tab==='score'?'block':'none';
+  document.getElementById('gt-comment').style.display=tab==='comment'?'block':'none';
+  document.getElementById('gt-pitcher').style.display=tab==='pitcher'?'block':'none';
+  if(tab==='pitcher') renderPitcherTable();
+  if(tab==='score') renderScore();
+  if(tab==='comment') renderComments();
+}
+
+// ── ORDER ──
+function renderOrder(){
+  const g=games[currentGameIdx];
+  const list=document.getElementById('order-list');
+  if(!g||g.order.length===0){list.innerHTML='<p style="font-size:13px;color:#888;padding:.5rem 0;">打順が設定されていません</p>';return;}
+  list.innerHTML='';
+  g.order.forEach(function(e,i){
+    const row=document.createElement('div');
+    row.className='order-row';row.dataset.idx=i;
+    if(role==='manager'){
+      const isSel=orderSelected===i;
+      row.draggable=true;
+      row.style.background=isSel?'#e6f1fb':'';
+      const pos=document.createElement('span');
+      pos.className='pos-pill';pos.textContent=e.pos;
+      const num=document.createElement('span');
+      num.className='num';num.textContent=i+1;
+      const name=document.createElement('span');
+      name.className='pname';name.textContent=e.name;
+      name.style.cursor='pointer';
+      name.style.color=isSel?'#185fa5':'#1a1a1a';
+      name.addEventListener('click',function(){onOrderPlayerClick(i);});
+      const rp=roster.find(p=>p.name===e.name);
+      const numBadge=document.createElement('span');
+      numBadge.style.cssText='font-size:12px;color:#888;flex-shrink:0;';
+      numBadge.textContent='#'+(rp&&rp.num?rp.num:'-');
+      row.appendChild(pos);row.appendChild(num);row.appendChild(name);row.appendChild(numBadge);
+      row.addEventListener('dragstart',onDragStart);
+      row.addEventListener('dragover',onDragOver);
+      row.addEventListener('dragleave',onDragLeave);
+      row.addEventListener('drop',onDrop);
+      row.addEventListener('dragend',onDragEnd);
+    } else {
+      const rp2=roster.find(p=>p.name===e.name);
+      row.innerHTML='<span class="pos-pill">'+e.pos+'</span><span class="num">'+(i+1)+'</span><span class="pname">'+e.name+'</span><span style="font-size:12px;color:#888;flex-shrink:0;">#'+(rp2&&rp2.num?rp2.num:'-')+'</span>';
+    }
+    list.appendChild(row);
+  });
+  renderBench('order-bench');
+}
+
+let dragSrcIdx=null;
+function onDragStart(e){dragSrcIdx=parseInt(this.dataset.idx);this.classList.add('dragging');}
+function onDragOver(e){e.preventDefault();this.classList.add('drag-over');}
+function onDragLeave(){this.classList.remove('drag-over');}
+function onDrop(e){
+  e.preventDefault();this.classList.remove('drag-over');
+  const destIdx=parseInt(this.dataset.idx);
+  if(dragSrcIdx===null||dragSrcIdx===destIdx)return;
+  const g=games[currentGameIdx];
+  const moved=g.order.splice(dragSrcIdx,1)[0];
+  g.order.splice(destIdx,0,moved);
+  renderOrder();renderField();saveData();
+}
+function onDragEnd(){this.classList.remove('dragging');dragSrcIdx=null;}
+function changePos(idx,newPos){games[currentGameIdx].order[idx].pos=newPos;renderField();saveData();}
+
+function openAddOrderModal(){
+  const sel=document.getElementById('oo-player');
+  sel.innerHTML=roster.map((p,i)=>`<option value="${i}">${p.num} ${p.name}（${p.stamenPos||'-'}）</option>`).join('');
+  updateOoPosPreview();sel.onchange=updateOoPosPreview;
+  openModal('mo-order');
+}
+function updateOoPosPreview(){
+  const pidx=parseInt(document.getElementById('oo-player').value);
+  const p=roster[pidx];
+  document.getElementById('oo-pos-preview').textContent=p?'ポジション: '+(p.stamenPos||'-'):'';
+}
+function saveOrderEntry(){
+  const g=games[currentGameIdx];
+  const pidx=parseInt(document.getElementById('oo-player').value);
+  const p=roster[pidx];
+  const pos=p.stamenPos||'右';
+  const dup=g.order.find(e=>e.pos===pos&&pos!=='DH');
+  if(dup){
+    alert(pos+'はすでに'+dup.name+'が入っています。\nフィールドタブで入れ替えてください。');return;
+  }
+  g.order.push({name:p.name,pos});
+  closeModal('mo-order');renderOrder();renderField();saveData();
+}
+
+// ── FIELD ──
+function renderField(){
+  const g=games[currentGameIdx];
+  const gr=document.getElementById('field-players-g');
+  if(!gr) return;
+  gr.innerHTML='';
+  if(!g) return;
+  g.order.forEach((e,i)=>{
+    const c=posCoords[e.pos];
+    if(!c) return;
+    const rosterPlayer=roster.find(p=>p.name===e.name);
+    const playerName=e.name.replace(' ','　');
+    const numLabel=String(i+1);
+    const jerseyNum=rosterPlayer&&rosterPlayer.num?'#'+rosterPlayer.num:'';
+    const leftW=34;
+    const rightW=Math.max(playerName.length*13+jerseyNum.length*10+16, 80);
+    const bw=leftW+rightW, bh=28, bx=c[0]-bw/2, by=c[1]-bh/2;
+    const isSelected=fieldSelected===i;
+    const grp=document.createElementNS('http://www.w3.org/2000/svg','g');
+    grp.style.cursor=role==='manager'?'pointer':'default';
+    const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    bg.setAttribute('x',bx);bg.setAttribute('y',by);bg.setAttribute('width',bw);bg.setAttribute('height',bh);
+    bg.setAttribute('rx','7');bg.setAttribute('fill',isSelected?'#185fa5':'#fff');bg.setAttribute('opacity','0.95');
+    if(isSelected){bg.setAttribute('stroke','#0c447c');bg.setAttribute('stroke-width','2');}
+    grp.appendChild(bg);
+    const leftBg=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    leftBg.setAttribute('x',bx);leftBg.setAttribute('y',by);leftBg.setAttribute('width',leftW);leftBg.setAttribute('height',bh);
+    leftBg.setAttribute('rx','7');leftBg.setAttribute('fill',isSelected?'rgba(255,255,255,0.2)':'#dbeafe');
+    grp.appendChild(leftBg);
+    const leftBg2=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    leftBg2.setAttribute('x',bx+leftW-6);leftBg2.setAttribute('y',by);leftBg2.setAttribute('width','6');leftBg2.setAttribute('height',bh);
+    leftBg2.setAttribute('fill',isSelected?'rgba(255,255,255,0.2)':'#dbeafe');
+    grp.appendChild(leftBg2);
+    const tNum=document.createElementNS('http://www.w3.org/2000/svg','text');
+    tNum.setAttribute('x',bx+leftW/2);tNum.setAttribute('y',c[1]+7);
+    tNum.setAttribute('text-anchor','middle');tNum.setAttribute('font-size','18');
+    tNum.setAttribute('fill',isSelected?'#fff':'#1d4ed8');tNum.setAttribute('font-weight','700');
+    tNum.textContent=numLabel;
+    grp.appendChild(tNum);
+    const t1=document.createElementNS('http://www.w3.org/2000/svg','text');
+    t1.setAttribute('x',bx+leftW+4);t1.setAttribute('y',c[1]+6);
+    t1.setAttribute('text-anchor','start');t1.setAttribute('font-size','14');
+    t1.setAttribute('fill',isSelected?'#fff':'#1a1a1a');t1.setAttribute('font-weight','500');
+    t1.textContent=playerName;
+    grp.appendChild(t1);
+    const t2=document.createElementNS('http://www.w3.org/2000/svg','text');
+    t2.setAttribute('x',bx+bw-4);t2.setAttribute('y',c[1]+6);
+    t2.setAttribute('text-anchor','end');t2.setAttribute('font-size','18');
+    t2.setAttribute('fill',isSelected?'rgba(255,255,255,0.85)':'#888');
+    t2.textContent=jerseyNum;
+    grp.appendChild(t2);
+    if(role==='manager') grp.addEventListener('click',()=>onFieldPlayerClick(i));
+    gr.appendChild(grp);
+  });
+  const hint=document.getElementById('field-swap-hint');
+  if(hint){
+    if(role==='manager'){hint.style.display='block';}
+    const g2=games[currentGameIdx];
+    hint.textContent=fieldSelected!==null
+      ?g2.order[fieldSelected].name.replace(' ','')+'を選択中 — 交換する選手をタップ'
+      :'選手をタップしてポジションを入れ替え';
+  }
+  renderBench('field-bench');
+}
+let orderSelected=null;
+
+function moveOrder(idx,dir){
+  const g=games[currentGameIdx];
+  const newIdx=idx+dir;
+  if(newIdx<0||newIdx>=g.order.length) return;
+  const tmp=g.order[idx];
+  g.order[idx]=g.order[newIdx];
+  g.order[newIdx]=tmp;
+  renderOrder();renderField();saveData();
+}
+
+function onOrderPlayerClick(idx){
+  const g=games[currentGameIdx];
+  if(orderSelected===null){
+    // 1人目選択
+    orderSelected=idx;
+    renderOrder();
+  } else if(orderSelected===idx){
+    // 同じ人をタップ→解除
+    orderSelected=null;
+    renderOrder();
+  } else {
+    // 2人目選択→入れ替え（スタメン同士）
+    const nameA=g.order[orderSelected].name;
+    const nameB=g.order[idx].name;
+    g.order[orderSelected].name=nameB;
+    g.order[idx].name=nameA;
+    orderSelected=null;
+    renderOrder();renderField();saveData();
+  }
+}
+
+function renderBench(containerId){
+  const wrap=document.getElementById(containerId);
+  if(!wrap) return;
+  const g=games[currentGameIdx];
+  if(!g){wrap.innerHTML='';return;}
+  const stamenNames=g.order.map(e=>e.name);
+  const bench=roster.filter(p=>!stamenNames.includes(p.name));
+  const isField=containerId==='field-bench';
+  const selected=isField?fieldSelected:orderSelected;
+  if(bench.length===0){
+    wrap.innerHTML='<div style="margin-top:1rem;"><p style="font-size:12px;color:#888;">ベンチメンバーなし</p></div>';
+    return;
+  }
+  const hint=selected!==null?'<span style="color:#185fa5;"> — 入れ替える選手を選択</span>':'';
+  const div=document.createElement('div');
+  div.style.marginTop='1rem';
+  const label=document.createElement('p');
+  label.style.cssText='font-size:12px;color:#888;margin-bottom:6px;';
+  label.innerHTML='ベンチ（'+bench.length+'名）'+hint;
+  div.appendChild(label);
+  const card=document.createElement('div');
+  card.className='card';
+  card.style.cssText='padding:.75rem 1rem;';
+  bench.forEach(function(p){
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid #eee;';
+    const isClickable=role==='manager'&&selected!==null;
+    if(isClickable){
+      row.style.cursor='pointer';
+      row.style.background='#e6f1fb';
+      row.addEventListener('click',function(){
+        if(isField) swapWithBenchDirect(selected,p.name);
+        else swapOrderWithBench(selected,p.name);
+      });
+    }
+    row.innerHTML='<span class="pos-pill">-</span>'
+      +'<span style="font-size:14px;flex:1;color:'+(isClickable?'#185fa5':'#1a1a1a')+';">'+p.name+'</span>'
+      +'<span style="font-size:12px;color:#888;flex-shrink:0;">#'+(p.num||'-')+'</span>';
+    card.appendChild(row);
+  });
+  div.appendChild(card);
+  wrap.innerHTML='';
+  wrap.appendChild(div);
+}
+
+
+function swapWithBenchDirect(orderIdx, benchName){
+  const g=games[currentGameIdx];
+  const benchPlayer=roster.find(p=>p.name===benchName);
+  if(!benchPlayer) return;
+  const currentPos=g.order[orderIdx].pos;
+  g.order[orderIdx]={name:benchPlayer.name,pos:currentPos};
+  fieldSelected=null;
+  renderField();renderOrder();saveData();
+}
+
+function selectOrderPlayer(idx, name){
+  // Game Noteタブ：ベンチ選手をクリックした場合（idx<0はベンチ）
+  if(orderSelected===null) return; // スタメン選択なしならスキップ
+  swapOrderWithBench(orderSelected, name);
+}
+
+function swapOrderWithBench(orderIdx, benchName){
+  const g=games[currentGameIdx];
+  const benchPlayer=roster.find(p=>p.name===benchName);
+  if(!benchPlayer) return;
+  // ベンチ選手のスタメンポジションが既に誰かに使われていないかチェック
+  const newPos=benchPlayer.stamenPos||g.order[orderIdx].pos;
+  const dup=g.order.find((e,i)=>i!==orderIdx&&e.pos===newPos&&newPos!=='DH');
+  // ポジションはそのまま（現在のスタメンのポジションを引き継ぐ）
+  const pos=g.order[orderIdx].pos;
+  g.order[orderIdx]={name:benchPlayer.name,pos};
+  orderSelected=null;
+  renderOrder();renderField();saveData();
+}
+
+function onFieldPlayerClick(idx){
+  if(fieldSelected===null){
+    fieldSelected=idx;
+    renderField();
+  } else if(fieldSelected===idx){
+    fieldSelected=null;
+    renderField();
+  } else {
+    // スタメン同士：選手ごと（名前+ポジション）を丸ごと入れ替え
+    const g=games[currentGameIdx];
+    const tmp={...g.order[fieldSelected]};
+    g.order[fieldSelected]={...g.order[idx]};
+    g.order[idx]=tmp;
+    fieldSelected=null;
+    renderField();renderOrder();saveData();
+  }
+}
+
+
+
+function backToLogin(){
+  document.getElementById('s-main').style.display='none';
+  document.getElementById('s-login').style.display='block';
+  document.getElementById('pin-screen').style.display='none';
+  document.getElementById('pin-screen-coach').style.display='none';
+  document.getElementById('btn-manager-role').style.display='flex';
+  document.getElementById('btn-coach-role').style.display='flex';
+  role='';
+}
+
+function openPitcherModal(){
+  document.getElementById('pt-player').innerHTML=roster.map((p,i)=>`<option value="${i}">${p.num} ${p.name}</option>`).join('');
+  openModal('mo-pitcher');
+}
+function addPitcherRow(){
+  const g=games[currentGameIdx];
+  const pidx=parseInt(document.getElementById('pt-player').value);
+  const p=roster[pidx];
+  if(g.pitchers.find(x=>x.name===p.name)){alert('すでに追加されています');return;}
+  g.pitchers.push({name:p.name,num:p.num,data:{'球数':{},'与四球':{},'奪三振':{},'WP':{},'被安打':{},'投球回':{}}});
+  closeModal('mo-pitcher');renderPitcherTable();saveData();
+}
+function renderPitcherTable(){
+  const g=games[currentGameIdx];
+  const wrap=document.getElementById('pitcher-table-wrap');
+  if(!g||!wrap) return;
+  if(!g.pitchers) g.pitchers=[];
+  // 既存投手データに新しい行キーがない場合に補完
+  g.pitchers.forEach(pt=>{
+    if(!pt.data) pt.data={};
+    PITCHER_ROWS.forEach(row=>{if(!pt.data[row]) pt.data[row]={};});
+  });
+  let html='';
+  if(role==='manager') html+=`<button class="sbtn" onclick="openPitcherModal()" style="margin-bottom:12px;">＋ 投手を追加</button>`;
+  if(role==='coach') html+='<p style="font-size:12px;color:#888;margin-bottom:8px;">球数のみ表示</p>';
+  if(g.pitchers.length===0){html+='<p class="notice">投手記録がありません</p>';wrap.innerHTML=html;return;}
+  g.pitchers.forEach((pt,pi)=>{
+    const totals={};
+    PITCHER_ROWS.forEach(row=>{totals[row]=INNINGS.reduce((s,inn)=>s+(parseInt(pt.data[row][inn])||0),0);});
+
+    // 現在の試合より前の試合の累計
+    const prevGames2=games.filter(pg=>pg.date<g.date);
+    const ps={ip:0,bb:0,h:0,k:0,wp:0,pitches:0,cnt:0};
+    prevGames2.forEach(pg=>{
+      if(!pg.pitchers) return;
+      const pp=pg.pitchers.find(p=>p.name===pt.name);
+      if(!pp||!pp.data) return;
+      ps.cnt++;
+      INNINGS.forEach(i=>{
+        ps.ip+=parseFloat(pp.data['投球回']?.[i])||0;
+        ps.bb+=parseInt(pp.data['与四球']?.[i])||0;
+        ps.h+=parseInt(pp.data['被安打']?.[i])||0;
+        ps.k+=parseInt(pp.data['奪三振']?.[i])||0;
+        ps.pitches+=parseInt(pp.data['球数']?.[i])||0;
+      });
+    });
+    const pWHIP=ps.ip>0?((ps.bb+ps.h)/ps.ip).toFixed(2):'-';
+    const pKBB=ps.bb>0?(ps.k/ps.bb).toFixed(2):'∞';
+    const pIP=Math.round(ps.ip*100)/100;
+
+    html+=`<div style="margin-bottom:1.5rem;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+        <p style="font-size:14px;font-weight:500;color:#1a1a1a;">${pt.num?pt.num+'. ':''}${pt.name}</p>
+        ${role==='manager'?`<button class="sbtn sbtn-danger" onclick="deletePitcher(${pi})">削除</button>`:''}
+      </div>
+      ${ps.cnt>0?`<div style="background:#f0f7ff;border-left:3px solid #185fa5;border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:8px;font-size:12px;">
+        <span style="font-weight:500;color:#185fa5;">前${ps.cnt}試合までの累計</span>
+        <div style="margin-top:6px;display:flex;gap:16px;color:#1a1a1a;flex-wrap:wrap;">
+          <span>一試合平均投球数 <b>${Math.round(ps.pitches/ps.cnt)}</b></span>
+          ${role==='manager'?`<span>WHIP <b>${pWHIP}</b></span><span>K/BB <b>${pKBB}</b></span>`:''}
+        </div>
+        ${role==='manager'?`<div style="margin-top:6px;color:#888;font-size:11px;line-height:1.6;">
+          WHIP：1イニングあたり何人出塁を許したか。1.50以下が目安。<br>
+          K/BB：四球1つに対して何個三振を取れるか。1.00以上が安定の目安。
+        </div>`:''}
+      </div>`:''}
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <table style="border-collapse:collapse;font-size:12px;min-width:100%;border:0.5px solid #ddd;">
+        <thead><tr>
+          <th style="padding:5px 6px;background:#f5f5f5;border:0.5px solid #ddd;text-align:left;min-width:52px;position:sticky;left:0;">項目</th>
+          ${INNINGS.map(i=>`<th style="padding:5px 8px;background:#f5f5f5;border:0.5px solid #ddd;text-align:center;min-width:36px;">${i===7?'サドン':i+'回'}</th>`).join('')}
+          <th style="padding:5px 8px;background:#eaf3de;border:0.5px solid #ddd;text-align:center;min-width:36px;font-weight:500;">計</th>
+        </tr></thead>
+        <tbody>${(role==='manager'?PITCHER_ROWS:['球数']).map(row=>{
+          const isCalc=row==='WHIP'||row==='K/BB';
+          const isIP=row==='投球回';
+          const bb=totals['与四球']||0;
+          const h=totals['被安打']||0;
+          const k=totals['奪三振']||0;
+          const ip=INNINGS.filter(inn=>pt.data['球数']&&pt.data['球数'][inn]>0).length||1;
+          let calcVal='';
+          if(row==='WHIP') calcVal=((bb+h)/ip).toFixed(2);
+          if(row==='K/BB') calcVal=bb>0?(k/bb).toFixed(2):'∞';
+          return `<tr>
+            <td style="padding:5px 6px;background:#f5f5f5;border:0.5px solid #ddd;font-weight:500;color:#555;position:sticky;left:0;">${row}</td>
+            ${isCalc
+              ? INNINGS.map(()=>`<td style="padding:5px 8px;border:0.5px solid #ddd;text-align:center;color:#bbb;">-</td>`).join('')
+              : isIP
+              ? INNINGS.map(inn=>{
+                  const ipVal=pt.data[row][inn];
+                  const ipDisp=ipVal!==undefined?ipVal:'';
+                  const ipCA=role==='manager'?`onclick="openIPPicker(${pi},${inn})"`:'';
+                  const ipCS=role==='manager'?'cursor:pointer;':'';
+                  return `<td ${ipCA} style="padding:5px 8px;border:0.5px solid #ddd;text-align:center;color:#185fa5;font-weight:500;${ipCS}">${ipDisp}</td>`;
+                }).join('')
+              : INNINGS.map(inn=>{
+                  const val=pt.data[row][inn]!==undefined?pt.data[row][inn]:'';
+                  const pca=role==='manager'?`onclick="openNumpad(${pi},'${row}',${inn})"`:'';
+                  const pcs=role==='manager'?'cursor:pointer;':'';
+                  return `<td ${pca} style="padding:5px 8px;border:0.5px solid #ddd;text-align:center;color:#1a1a1a;${pcs}">${val}</td>`;
+                }).join('')
+            }
+            <td style="padding:5px 8px;background:#eaf3de;border:0.5px solid #ddd;text-align:center;font-weight:500;color:#3b6d11;">${isCalc?calcVal:isIP?(Math.round(INNINGS.reduce((s,i)=>s+(parseFloat(pt.data[row]?.[i])||0),0)*100)/100):(totals[row]||0)}</td>
+          </tr>`;
+        }).join('')}
+        </tbody>
+      </table></div></div>`;
+  });
+  wrap.innerHTML=html;
+}
+function openIPPicker(pi, inn){
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:300;';
+  const box=document.createElement('div');
+  box.style.cssText='background:#fff;border-radius:16px;padding:1.5rem;width:280px;max-width:90%;';
+  const inn_labels=['1回','2回','3回','4回','5回','6回','サドン'];
+  const inn_label=inn_labels[inn-1]||inn+'回';
+  const cur=games[currentGameIdx].pitchers[pi].data['投球回']?.[inn];
+  const opts=[{val:0,label:'0'},{val:0.33,label:'1/3'},{val:0.67,label:'2/3'},{val:1,label:'1'}];
+
+  const title=document.createElement('p');
+  title.style.cssText='font-size:15px;font-weight:500;color:#1a1a1a;margin-bottom:4px;text-align:center;';
+  title.textContent='投球回 - '+inn_label;
+  const sub=document.createElement('p');
+  sub.style.cssText='font-size:12px;color:#888;text-align:center;margin-bottom:16px;';
+  sub.textContent='何イニング投げましたか？';
+  const grid=document.createElement('div');
+  grid.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:8px;';
+
+  opts.forEach(opt=>{
+    const btn=document.createElement('button');
+    const isSelected=parseFloat(cur)===opt.val;
+    btn.style.cssText='padding:14px;border:0.5px solid #ccc;border-radius:10px;font-size:18px;cursor:pointer;font-weight:500;background:'+(isSelected?'#185fa5':'#fff')+';color:'+(isSelected?'#fff':'#1a1a1a')+';';
+    btn.textContent=opt.label;
+    btn.addEventListener('click',()=>{
+      if(opt.val===0) delete games[currentGameIdx].pitchers[pi].data['投球回'][inn];
+      else games[currentGameIdx].pitchers[pi].data['投球回'][inn]=opt.val;
+      saveData();renderPitcherTable();ov.remove();
+    });
+    grid.appendChild(btn);
+  });
+
+  const cancel=document.createElement('button');
+  cancel.style.cssText='width:100%;padding:12px;margin-top:12px;border:0.5px solid #ccc;border-radius:10px;background:none;font-size:14px;color:#888;cursor:pointer;';
+  cancel.textContent='キャンセル';
+  cancel.addEventListener('click',()=>ov.remove());
+
+  box.appendChild(title);box.appendChild(sub);box.appendChild(grid);box.appendChild(cancel);
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+}
+
+function openNumpad(pitcherIdx,row,inning){
+  numpadTarget={pitcherIdx,row,inning};
+  numpadVal=String(games[currentGameIdx].pitchers[pitcherIdx].data[row][inning]||'');
+  document.getElementById('numpad-title').textContent=`${games[currentGameIdx].pitchers[pitcherIdx].name} ${inning}回 ${row}`;
+  updateNumpadDisplay();openModal('mo-numpad');
+}
+function numpadInput(n){if(numpadVal.length>=3)return;numpadVal+=String(n);updateNumpadDisplay();}
+function numpadBack(){numpadVal=numpadVal.slice(0,-1);updateNumpadDisplay();}
+function numpadClear(){numpadVal='';updateNumpadDisplay();}
+function updateNumpadDisplay(){document.getElementById('numpad-display').textContent=numpadVal===''?'-':numpadVal;}
+function numpadConfirm(){
+  if(window._numpadMode==='score'){
+    const g=games[currentGameIdx];
+    const{team,idx}=scoreNumpadTarget;
+    if(numpadVal==='') delete g.score[team][idx];
+    else g.score[team][idx]=parseInt(numpadVal);
+    window._numpadMode=null;
+    closeModal('mo-numpad');renderScore();saveData();
+    return;
+  }
+  const{pitcherIdx,row,inning}=numpadTarget;
+  games[currentGameIdx].pitchers[pitcherIdx].data[row][inning]=numpadVal===''?undefined:parseInt(numpadVal);
+  closeModal('mo-numpad');renderPitcherTable();saveData();
+}
+function deletePitcher(idx){
+  confirmDelete('投手記録を削除','この投手記録を削除しますか？',()=>{
+    games[currentGameIdx].pitchers.splice(idx,1);renderPitcherTable();saveData();
+  });
+}
+function renderScore(){
+  const g=games[currentGameIdx];
+  if(!g) return;
+  if(!g.score) g.score={batting:'先攻',atoms:[],opp:[]};
+  const sc=g.score;
+  const wrap=document.getElementById('score-content');
+  const SCORE_INNINGS=['1','2','3','4','5','6','サドン'];
+  const isManager=role==='manager';
+
+  const atomsTotal=sc.atoms.reduce((s,v)=>s+(parseInt(v)||0),0);
+  const oppTotal=sc.opp.reduce((s,v)=>s+(parseInt(v)||0),0);
+
+  let html=`<div style="margin-bottom:1rem;">`;
+
+  // 先攻・後攻選択
+  html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:1rem;">
+    <span style="font-size:13px;color:#888;">アトムズ：</span>
+    ${isManager?`
+    <button onclick="setScoreBatting('先攻')" style="padding:4px 12px;border-radius:8px;border:0.5px solid #ccc;background:${sc.batting==='先攻'?'#1a1a1a':'none'};color:${sc.batting==='先攻'?'#fff':'#666'};cursor:pointer;font-size:13px;">先攻</button>
+    <button onclick="setScoreBatting('後攻')" style="padding:4px 12px;border-radius:8px;border:0.5px solid #ccc;background:${sc.batting==='後攻'?'#1a1a1a':'none'};color:${sc.batting==='後攻'?'#fff':'#666'};cursor:pointer;font-size:13px;">後攻</button>`
+    :`<span style="font-size:13px;font-weight:500;color:#1a1a1a;">${sc.batting}</span>`}
+  </div>`;
+
+  // 開始時刻・試合時間・終了予定
+  if(!sc.startTime) sc.startTime='';
+  if(!sc.duration) sc.duration=80;
+  let endTimeStr='';
+  if(sc.startTime){
+    const [h,m]=sc.startTime.split(':').map(Number);
+    const endMin=h*60+m+parseInt(sc.duration||90);
+    endTimeStr=String(Math.floor(endMin/60)%24).padStart(2,'0')+':'+String(endMin%60).padStart(2,'0');
+  }
+  html+=`<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span style="font-size:13px;color:#888;">開始</span>
+      ${isManager
+        ? `<input type="time" id="score-start-time" value="${sc.startTime}" onchange="setScoreTime('startTime',this.value)" style="padding:4px 8px;border:0.5px solid #ccc;border-radius:8px;font-size:14px;">`
+        : `<span style="font-size:14px;font-weight:500;">${sc.startTime||'--:--'}</span>`}
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <span style="font-size:13px;color:#888;">試合時間</span>
+      ${isManager
+        ? `<select id="score-duration" onchange="setScoreTime('duration',this.value)" style="padding:4px 8px;border:0.5px solid #ccc;border-radius:8px;font-size:14px;">
+            ${[70,80,90].map(d=>`<option value="${d}" ${sc.duration==d?'selected':''}>${d}分</option>`).join('')}
+          </select>`
+        : `<span style="font-size:14px;font-weight:500;">${sc.duration||90}分</span>`}
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+      <span style="font-size:13px;color:#888;">終了予定</span>
+      ${isManager
+        ? `<input type="time" value="${sc.endTime||endTimeStr||''}" onchange="setScoreTime('endTime',this.value)" style="padding:4px 8px;border:0.5px solid #ccc;border-radius:8px;font-size:14px;font-weight:700;color:#185fa5;">`
+        : `<span style="font-size:16px;font-weight:700;color:#185fa5;">${sc.endTime||endTimeStr||'--:--'}</span>`
+      }
+      ${sc.endTime&&sc.endTime!==endTimeStr?`<span style="font-size:11px;font-weight:500;padding:2px 7px;border-radius:4px;background:#fff3cd;color:#856404;">延長</span>`:''}
+      <span id="score-countdown" style="font-size:13px;color:#888;"></span>
+    </div>
+  </div>`;
+
+  // スコア表
+  html+=`<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+  <table style="border-collapse:collapse;font-size:13px;min-width:100%;border:0.5px solid #ddd;">
+    <thead><tr>
+      <th style="padding:6px 8px;background:#f5f5f5;border:0.5px solid #ddd;text-align:left;min-width:80px;position:sticky;left:0;">チーム</th>
+      ${SCORE_INNINGS.map(i=>`<th style="padding:6px 8px;background:#f5f5f5;border:0.5px solid #ddd;text-align:center;min-width:40px;">${i}</th>`).join('')}
+      <th style="padding:6px 8px;background:#eaf3de;border:0.5px solid #ddd;text-align:center;min-width:40px;font-weight:500;">計</th>
+    </tr></thead>
+    <tbody>
+      ${(sc.batting==='先攻'?[
+        {label:'アトムズ',key:'atoms',total:atomsTotal},
+        {label:g.opp,key:'opp',total:oppTotal}
+      ]:[
+        {label:g.opp,key:'opp',total:oppTotal},
+        {label:'アトムズ',key:'atoms',total:atomsTotal}
+      ]).map(row=>`<tr>
+        <td style="padding:6px 8px;background:#f5f5f5;border:0.5px solid #ddd;font-weight:500;position:sticky;left:0;white-space:nowrap;">${row.label}</td>
+        ${SCORE_INNINGS.map((inn,idx)=>{
+          const val=sc[row.key][idx]!==undefined?sc[row.key][idx]:'';
+          const sca=isManager?`onclick="openScoreNumpad('${row.key}',${idx})"`:'';
+          const scs=isManager?'cursor:pointer;':'';
+          return `<td ${sca} style="padding:6px 8px;border:0.5px solid #ddd;text-align:center;color:#1a1a1a;${scs}">${val}</td>`;
+        }).join('')}
+        <td style="padding:6px 8px;background:#eaf3de;border:0.5px solid #ddd;text-align:center;font-weight:500;color:#3b6d11;">${row.total}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+
+  // 勝敗表示
+  if(atomsTotal!==oppTotal){
+    const winning=atomsTotal>oppTotal?'アトムズ リード':'${g.opp} リード';
+    const diff=Math.abs(atomsTotal-oppTotal);
+    html+=`<p style="font-size:14px;font-weight:500;color:#185fa5;text-align:center;margin-top:12px;">${atomsTotal>oppTotal?'アトムズ':g.opp} リード（${diff}点差）</p>`;
+  } else if(sc.atoms.length>0||sc.opp.length>0){
+    html+=`<p style="font-size:14px;font-weight:500;color:#888;text-align:center;margin-top:12px;">同点</p>`;
+  }
+
+  html+=`</div>`;
+  wrap.innerHTML=html;
+  const cdTarget=sc.endTime||endTimeStr;
+  if(cdTarget) setTimeout(()=>startCountdown(cdTarget),50);
+}
+
+let scoreNumpadTarget={team:null,idx:null};
+function openScoreNumpad(team,idx){
+  const g=games[currentGameIdx];
+  scoreNumpadTarget={team,idx};
+  const val=g.score[team][idx];
+  document.getElementById('numpad-title').textContent=(team==='atoms'?'アトムズ':g.opp)+' '+(idx===6?'サドン':idx+1+'回')+'回';
+  numpadVal=val!==undefined?String(val):'';
+  updateNumpadDisplay();
+  // numpadConfirmをスコア用に上書き
+  window._numpadMode='score';
+  openModal('mo-numpad');
+}
+
+let _countdownTimer=null;
+function startCountdown(endTimeStr){
+  if(_countdownTimer) clearInterval(_countdownTimer);
+  if(!endTimeStr) return;
+  function update(){
+    const el=document.getElementById('score-countdown');
+    if(!el) {clearInterval(_countdownTimer);return;}
+    const now=new Date();
+    const today=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
+    const gameDate=games[currentGameIdx]?games[currentGameIdx].date:'';
+    if(gameDate!==today){el.textContent='';el.style.background='none';return;}
+    const [eh,em]=endTimeStr.split(':').map(Number);
+    const endSec=(eh*60+em)*60;
+    const nowSec=now.getHours()*3600+now.getMinutes()*60+now.getSeconds();
+    const diffSec=endSec-nowSec;
+    const absSec=Math.abs(diffSec);
+    const mm=String(Math.floor(absSec/60)).padStart(2,'0');
+    const ss=String(absSec%60).padStart(2,'0');
+    if(diffSec>0){
+      el.textContent=mm+':'+ss;
+      el.style.color=diffSec<=600?'#a32d2d':'#185fa5';
+      el.style.background=diffSec<=600?'#fff0f0':'#f0f7ff';
+    } else if(diffSec===0){
+      el.textContent='00:00';
+      el.style.color='#a32d2d';
+      el.style.background='#fff0f0';
+    } else {
+      el.textContent='-'+mm+':'+ss;
+      el.style.color='#a32d2d';
+      el.style.background='#fff0f0';
+    }
+    el.style.cssText+=';font-family:monospace;font-size:20px;font-weight:700;padding:4px 10px;border-radius:8px;letter-spacing:2px;';
+  }
+  update();
+  _countdownTimer=setInterval(update,1000);
+}
+
+function setScoreTime(key, val){
+  const g=games[currentGameIdx];
+  if(!g.score) g.score={batting:'先攻',atoms:[],opp:[],startTime:'',duration:90};
+  g.score[key]=key==='duration'?parseInt(val):val;
+  saveData();renderScore();
+}
+
+function setScoreBatting(val){
+  games[currentGameIdx].score.batting=val;
+  saveData();renderScore();
+}
+
+function renderComments(){
+  const g=games[currentGameIdx];
+  if(!g) return;
+  if(!g.comments) g.comments=[];
+  const wrap=document.getElementById('comment-content');
+  const isManager=role==='manager';
+  let html='';
+
+  if(isManager||role==='coach'){
+    const isM=isManager;
+    if(!isM) _commentType='Good';
+    html+=`<div style="margin-bottom:1rem;">
+      <label style="font-size:12px;color:#888;display:block;margin-bottom:4px;">選手を選択</label>
+      <select id="comment-player" style="width:100%;margin-bottom:8px;">
+        <option value="">選手を選ぶ</option>
+        ${roster.map((p,i)=>`<option value="${i}">${p.num} ${p.name}</option>`).join('')}
+      </select>
+      <label style="font-size:12px;color:#888;display:block;margin-bottom:4px;">種別 <span style="color:#a32d2d;">*</span></label>
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <button id="type-good" onclick="setCommentType('Good')" style="flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;background:${!isM?'#dcfce7':'#fff'};color:${!isM?'#166534':'#1a1a1a'};font-size:14px;cursor:pointer;">👍 Good</button>
+        ${isM?`<button id="type-improve" onclick="setCommentType('Improve')" style="flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;background:#fff;font-size:14px;cursor:pointer;">📈 Improve</button>`:''}
+      </div>
+      <label style="font-size:12px;color:#888;display:block;margin-bottom:4px;">コメントする人 ${isM?'<span style="color:#a32d2d;">*</span>':''}</label>
+      ${isM
+        ? `<select id="comment-author" style="width:100%;margin-bottom:8px;">
+            <option value="">選択してください</option>
+            <option value="漆畑C">漆畑C</option>
+            <option value="蟹谷C">蟹谷C</option>
+            <option value="新井C">新井C</option>
+            <option value="貫井C">貫井C</option>
+            <option value="森C">森C</option>
+          </select>`
+        : `<input type="text" id="comment-author" placeholder="名前を入力..." style="width:100%;margin-bottom:8px;padding:8px;border:0.5px solid #ccc;border-radius:8px;font-size:14px;">`
+      }
+      <label style="font-size:12px;color:#888;display:block;margin-bottom:4px;">コメント <span style="color:#a32d2d;">*</span></label>
+      <textarea id="comment-text" placeholder="コメントを入力..." style="width:100%;height:80px;padding:8px;border:0.5px solid #ccc;border-radius:8px;font-size:14px;resize:none;"></textarea>
+      <button onclick="addComment()" class="btn-primary" style="margin-top:8px;">コメントを追加</button>
+    </div>`;
+  }
+
+  const visibleComments=isManager?g.comments:g.comments.filter(c=>c.type==='Good'||!c.type);
+  if(visibleComments.length===0){
+    html+='<p class="notice">コメントがありません</p>';
+  } else {
+    html+=[...visibleComments].reverse().map((c,i)=>`
+      <div class="card" style="margin-bottom:.75rem;padding:.875rem 1rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div>
+            <span style="font-size:13px;font-weight:500;color:#185fa5;">${c.playerName}</span>
+            ${c.type?`<span style="font-size:11px;font-weight:500;padding:2px 6px;border-radius:4px;margin-left:6px;background:${c.type==='Good'?'#dcfce7':'#dbeafe'};color:${c.type==='Good'?'#166534':'#1e40af'};">${c.type==='Good'?'👍 Good':'📈 Improve'}</span>`:''}
+            ${c.author?`<span style="font-size:12px;color:#888;margin-left:6px;">from ${c.author}</span>`:''}
+            ${c.postedAt?`<span style="font-size:11px;color:#bbb;margin-left:6px;">${c.postedAt}</span>`:''}
+          </div>
+          ${isManager?`<div style="display:flex;gap:4px;"><button class="sbtn" onclick="editComment(${visibleComments.length-1-i})">編集</button><button class="sbtn sbtn-danger" onclick="deleteComment(${visibleComments.length-1-i})">削除</button></div>`:''}
+        </div>
+        <p style="font-size:14px;color:#1a1a1a;line-height:1.6;white-space:pre-wrap;">${c.text}</p>
+      </div>`).join('');
+  }
+
+  wrap.innerHTML=html;
+}
+
+let _commentType='';
+function setCommentType(type){
+  _commentType=type;
+  const tg=document.getElementById('type-good');
+  const ti=document.getElementById('type-improve');
+  if(tg) tg.style.cssText='flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;font-size:14px;cursor:pointer;background:'+(type==='Good'?'#dcfce7;color:#166534;font-weight:500;':'#fff;');
+  if(ti) ti.style.cssText='flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;font-size:14px;cursor:pointer;background:'+(type==='Improve'?'#dbeafe;color:#1e40af;font-weight:500;':'#fff;');
+}
+function addComment(){
+  const g=games[currentGameIdx];
+  const pidx=document.getElementById('comment-player').value;
+  const author=document.getElementById('comment-author').value;
+  const text=document.getElementById('comment-text').value.trim();
+  if(!_commentType){if(role==='coach'){_commentType='Good';}else{alert('Good/Improveを選んでください');return;}}
+  if(role==='manager'&&!author){alert('コメントする人を選んでください');return;}
+  if(!text){alert('コメントを入力してください');return;}
+  const playerName=pidx?roster[parseInt(pidx)].name:'チーム全体';
+  const playerNum=pidx?roster[parseInt(pidx)].num:'';
+  const authorName=author||'匿名';
+  const postedAt=new Date().toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  g.comments.push({playerName,playerNum,author:authorName,type:_commentType,text,postedAt});
+  _commentType='';
+  saveData();
+  renderComments();
+}
+
+function editComment(idx){
+  const g=games[currentGameIdx];
+  const c=g.comments[idx];
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:300;';
+  const box=document.createElement('div');
+  box.style.cssText='background:#fff;border-radius:16px;padding:1.5rem;width:320px;max-width:92%;';
+  box.innerHTML=`
+    <p style="font-size:15px;font-weight:500;color:#1a1a1a;margin-bottom:12px;">コメントを編集</p>
+    <label style="font-size:12px;color:#888;display:block;margin-bottom:4px;">種別</label>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <button id="edit-type-good" onclick="document.getElementById('edit-type-good').style.background=c.type==='Good'?'#dcfce7':'#fff'" style="flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;font-size:14px;cursor:pointer;background:${c.type==='Good'?'#dcfce7':'#fff'};color:${c.type==='Good'?'#166534':'#666'};">👍 Good</button>
+      <button id="edit-type-improve" style="flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;font-size:14px;cursor:pointer;background:${c.type==='Improve'?'#dbeafe':'#fff'};color:${c.type==='Improve'?'#1e40af':'#666'};">📈 Improve</button>
+    </div>
+    <label style="font-size:12px;color:#888;display:block;margin-bottom:4px;">コメントする人</label>
+    <select id="edit-author" style="width:100%;margin-bottom:10px;padding:8px;border:0.5px solid #ccc;border-radius:8px;font-size:14px;">
+      <option value="">選択してください</option>
+      <option value="漆畑C" ${c.author==='漆畑C'?'selected':''}>漆畑C</option>
+      <option value="蟹谷C" ${c.author==='蟹谷C'?'selected':''}>蟹谷C</option>
+      <option value="新井C" ${c.author==='新井C'?'selected':''}>新井C</option>
+      <option value="貫井C" ${c.author==='貫井C'?'selected':''}>貫井C</option>
+      <option value="森C" ${c.author==='森C'?'selected':''}>森C</option>
+    </select>
+    <label style="font-size:12px;color:#888;display:block;margin-bottom:4px;">コメント</label>
+    <textarea id="edit-comment-text" style="width:100%;height:100px;padding:8px;border:0.5px solid #ccc;border-radius:8px;font-size:14px;resize:none;margin-bottom:12px;">${c.text}</textarea>
+    <div style="display:flex;gap:8px;">
+      <button id="edit-cancel" style="flex:1;padding:12px;border:0.5px solid #ccc;border-radius:10px;background:none;font-size:14px;color:#666;cursor:pointer;">キャンセル</button>
+      <button id="edit-save" style="flex:1;padding:12px;border:none;border-radius:10px;background:#185fa5;color:#fff;font-size:14px;cursor:pointer;font-weight:500;">保存</button>
+    </div>`;
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  ov.querySelector('#edit-cancel').addEventListener('click',()=>ov.remove());
+  ov.querySelector('#edit-type-good').addEventListener('click',()=>{
+    ov.querySelector('#edit-type-good').style.cssText='flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;font-size:14px;cursor:pointer;background:#dcfce7;color:#166534;font-weight:500;';
+    ov.querySelector('#edit-type-improve').style.cssText='flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;font-size:14px;cursor:pointer;background:#fff;color:#666;';
+  });
+  ov.querySelector('#edit-type-improve').addEventListener('click',()=>{
+    ov.querySelector('#edit-type-improve').style.cssText='flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;font-size:14px;cursor:pointer;background:#dbeafe;color:#1e40af;font-weight:500;';
+    ov.querySelector('#edit-type-good').style.cssText='flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;font-size:14px;cursor:pointer;background:#fff;color:#666;';
+  });
+  ov.querySelector('#edit-save').addEventListener('click',()=>{
+    const author=ov.querySelector('#edit-author').value;
+    const text=ov.querySelector('#edit-comment-text').value.trim();
+    const goodBtn=ov.querySelector('#edit-type-good');
+    const impBtn=ov.querySelector('#edit-type-improve');
+    const type=goodBtn.style.background.includes('dcfce7')?'Good':impBtn.style.background.includes('dbeafe')?'Improve':'';
+    if(!type){alert('Good/Improveを選んでください');return;}
+    if(!author){alert('コメントする人を選んでください');return;}
+    if(!text){alert('コメントを入力してください');return;}
+    g.comments[idx].author=author;
+    g.comments[idx].type=type;
+    g.comments[idx].text=text;
+    saveData();renderComments();
+    ov.remove();
+  });
+}
+
+function deleteComment(idx){
+  confirmDelete('コメントを削除','このコメントを削除しますか？',()=>{
+    games[currentGameIdx].comments.splice(idx,1);saveData();renderComments();
+  });
+}
+function showPlayerComments(playerName){
+  const playerComments=games.filter(g=>g.comments&&g.comments.some(c=>c.playerName===playerName))
+    .flatMap(g=>g.comments.filter(c=>c.playerName===playerName).map(c=>({game:g,comment:c})));
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:300;';
+  let inner='';
+  if(playerComments.length===0){
+    inner='<p style="font-size:14px;color:#888;text-align:center;padding:1rem 0;">コメントがありません</p>';
+  } else {
+    inner=playerComments.map(({game,comment})=>`
+      <div style="margin-bottom:10px;padding:10px 12px;background:#f5f5f5;border-radius:8px;border-left:3px solid #185fa5;">
+        <p style="font-size:12px;color:#185fa5;font-weight:500;margin-bottom:4px;">${game.date} vs ${game.opp}</p>
+        <p style="font-size:14px;color:#1a1a1a;line-height:1.6;white-space:pre-wrap;">${comment.text}</p>
+      </div>`).join('');
+  }
+  ov.innerHTML=`
+    <div style="background:#fff;border-radius:16px 16px 0 0;padding:1.25rem;width:100%;max-width:440px;max-height:70vh;overflow-y:auto;">
+      <p style="font-size:15px;font-weight:500;color:#1a1a1a;margin-bottom:12px;">${playerName} へのコメント</p>
+      ${inner}
+      <button onclick="this.closest('.ov-overlay').remove()" style="width:100%;padding:12px;margin-top:8px;border:0.5px solid #ccc;border-radius:10px;background:none;font-size:14px;color:#666;cursor:pointer;">閉じる</button>
+    </div>`;
+  ov.className='ov-overlay';
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  ov.querySelector('button').addEventListener('click',()=>ov.remove());
+  document.body.appendChild(ov);
+}
+
+function confirmDelete(title, desc, onConfirm){
+  function makeOv(bg){const ov=document.createElement('div');ov.style.cssText=`position:fixed;inset:0;background:${bg};display:flex;align-items:center;justify-content:center;z-index:300;`;return ov;}
+  function makeBtn(t,s){const b=document.createElement('button');b.style.cssText=s;b.textContent=t;return b;}
+  const ns='flex:1;padding:12px;border:0.5px solid #ccc;border-radius:10px;background:none;font-size:14px;color:#666;cursor:pointer;';
+  const ys='flex:1;padding:12px;border:none;border-radius:10px;background:#a32d2d;color:#fff;font-size:14px;cursor:pointer;font-weight:500;';
+
+  // 1段階目
+  const ov1=makeOv('rgba(0,0,0,.45)');
+  const bx1=document.createElement('div');bx1.style.cssText='background:#fff;border-radius:16px;padding:1.5rem;width:300px;max-width:90%;';
+  bx1.innerHTML=`<p style="font-size:15px;font-weight:500;margin-bottom:8px;text-align:center;">${title}</p><p style="font-size:13px;color:#888;text-align:center;margin-bottom:1.25rem;">${desc}</p>`;
+  const r1=document.createElement('div');r1.style.cssText='display:flex;gap:8px;';
+  const b1n=makeBtn('いいえ',ns),b1y=makeBtn('はい',ys);
+  r1.appendChild(b1n);r1.appendChild(b1y);bx1.appendChild(r1);ov1.appendChild(bx1);document.body.appendChild(ov1);
+  b1n.addEventListener('click',()=>ov1.remove());
+  b1y.addEventListener('click',()=>{
+    ov1.remove();
+
+    // 2段階目
+    const ov2=makeOv('rgba(0,0,0,.55)');
+    const bx2=document.createElement('div');bx2.style.cssText='background:#fff;border-radius:16px;padding:1.5rem;width:300px;max-width:90%;';
+    bx2.innerHTML='<p style="font-size:15px;font-weight:500;color:#a32d2d;margin-bottom:8px;text-align:center;">本当に削除しますか？</p><p style="font-size:13px;color:#888;text-align:center;margin-bottom:1.25rem;">この操作は取り消せません</p>';
+    const r2=document.createElement('div');r2.style.cssText='display:flex;gap:8px;';
+    const b2n=makeBtn('やっぱりやめる',ns),b2y=makeBtn('本当に削除する',ys);
+    r2.appendChild(b2n);r2.appendChild(b2y);bx2.appendChild(r2);ov2.appendChild(bx2);document.body.appendChild(ov2);
+    b2n.addEventListener('click',()=>ov2.remove());
+    b2y.addEventListener('click',()=>{
+      ov2.remove();
+
+      // 3段階目：暗証番号入力
+      const ov3=makeOv('rgba(0,0,0,.65)');
+      const bx3=document.createElement('div');bx3.style.cssText='background:#fff;border-radius:16px;padding:1.5rem;width:300px;max-width:90%;';
+      bx3.innerHTML=`
+        <p style="font-size:15px;font-weight:500;color:#7f1d1d;margin-bottom:8px;text-align:center;">最終確認</p>
+        <p style="font-size:13px;color:#888;text-align:center;margin-bottom:12px;">削除するには暗証番号を入力してください</p>
+        <input id="del-pin-input" type="password" inputmode="numeric" maxlength="3" placeholder="暗証番号" style="width:100%;padding:10px;border:0.5px solid #ccc;border-radius:8px;font-size:18px;text-align:center;letter-spacing:6px;margin-bottom:8px;">
+        <p id="del-pin-err" style="color:#a32d2d;font-size:12px;text-align:center;min-height:16px;margin-bottom:8px;"></p>`;
+      const r3=document.createElement('div');r3.style.cssText='display:flex;gap:8px;';
+      const b3n=makeBtn('戻る',ns);
+      const b3y=makeBtn('削除する','flex:1;padding:12px;border:none;border-radius:10px;background:#7f1d1d;color:#fff;font-size:14px;cursor:pointer;font-weight:500;');
+      r3.appendChild(b3n);r3.appendChild(b3y);bx3.appendChild(r3);ov3.appendChild(bx3);document.body.appendChild(ov3);
+      b3n.addEventListener('click',()=>ov3.remove());
+      b3y.addEventListener('click',()=>{
+        const pin=document.getElementById('del-pin-input').value;
+        if(pin==='920'){ov3.remove();onConfirm();}
+        else{document.getElementById('del-pin-err').textContent='暗証番号が違います';}
+      });
+    });
+  });
+}
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+
+function openExportMenu(){
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:300;';
+  const box=document.createElement('div');
+  box.style.cssText='background:#fff;border-radius:16px 16px 0 0;padding:1.25rem;width:100%;max-width:440px;';
+  box.innerHTML=`
+    <p style="font-size:15px;font-weight:500;color:#1a1a1a;margin-bottom:12px;">Excelエクスポート</p>
+    <button id="exp-pitcher" style="width:100%;padding:12px;margin-bottom:8px;border:0.5px solid #ccc;border-radius:10px;background:none;font-size:14px;color:#1a1a1a;cursor:pointer;text-align:left;">📊 投手記録（試合×イニング）</button>
+    <button id="exp-comment" style="width:100%;padding:12px;margin-bottom:8px;border:0.5px solid #ccc;border-radius:10px;background:none;font-size:14px;color:#1a1a1a;cursor:pointer;text-align:left;">💬 コメント（選手×試合）</button>
+    <button id="exp-score" style="width:100%;padding:12px;margin-bottom:8px;border:0.5px solid #ccc;border-radius:10px;background:none;font-size:14px;color:#1a1a1a;cursor:pointer;text-align:left;">🏆 スコア（試合一覧）</button>
+    <button id="exp-cancel" style="width:100%;padding:12px;border:0.5px solid #ccc;border-radius:10px;background:none;font-size:14px;color:#888;cursor:pointer;">キャンセル</button>`;
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  box.querySelector('#exp-pitcher').addEventListener('click',()=>{ov.remove();exportPitcherExcel();});
+  box.querySelector('#exp-comment').addEventListener('click',()=>{ov.remove();exportCommentExcel();});
+  box.querySelector('#exp-score').addEventListener('click',()=>{ov.remove();exportScoreExcel();});
+  box.querySelector('#exp-cancel').addEventListener('click',()=>ov.remove());
+}
+
+function exportPitcherExcel(){
+  const wb=XLSX.utils.book_new();
+  const INNINGS=[1,2,3,4,5,6,7];
+  const INN_LABELS=['1回','2回','3回','4回','5回','6回','サドン'];
+  const ROWS=['球数','与四球','奪三振','WP','被安打','WHIP','K/BB'];
+  games.forEach(g=>{
+    if(!g.pitchers||g.pitchers.length===0) return;
+    const wsData=[['投手','項目',...INN_LABELS,'計']];
+    g.pitchers.forEach(pt=>{
+      if(!pt.data) return;
+      const totals={};
+      ['球数','与四球','奪三振','WP','被安打'].forEach(row=>{
+        totals[row]=INNINGS.map(i=>parseInt(pt.data[row]?.[i]||0)||0).reduce((a,b)=>a+b,0);
+      });
+      const bb=totals['与四球']||0,h=totals['被安打']||0,k=totals['奪三振']||0;
+      const ip=INNINGS.filter(i=>pt.data['球数']?.[i]>0).length||1;
+      totals['WHIP']=((bb+h)/ip).toFixed(2);
+      totals['K/BB']=bb>0?(k/bb).toFixed(2):'∞';
+      ROWS.forEach((row,ri)=>{
+        const isCalc=row==='WHIP'||row==='K/BB';
+        const vals=isCalc?INN_LABELS.map(()=>'-'):INNINGS.map(i=>pt.data[row]?.[i]??'');
+        wsData.push([ri===0?`${pt.num} ${pt.name}`:'',row,...vals,totals[row]]);
+      });
+      wsData.push([]);
+    });
+    const ws=XLSX.utils.aoa_to_sheet(wsData);
+    XLSX.utils.book_append_sheet(wb,ws,`${g.date} vs ${g.opp}`.slice(0,31));
+  });
+  if(wb.SheetNames.length===0){alert('投手記録がありません');return;}
+  XLSX.writeFile(wb,'投手記録.xlsx');
+}
+
+function exportCommentExcel(){
+  const wb=XLSX.utils.book_new();
+  const wsData=[['選手名','試合日','対戦相手','コメントする人','種別','コメント']];
+  roster.forEach(p=>{
+    const pcs=games.filter(g=>g.comments&&g.comments.some(c=>c.playerName===p.name))
+      .flatMap(g=>g.comments.filter(c=>c.playerName===p.name).map(c=>({game:g,comment:c})));
+    if(!pcs.length) return;
+    pcs.forEach(({game,comment})=>{
+      wsData.push([p.name,game.date,game.opp,comment.author||'',comment.type||'',comment.text]);
+    });
+    wsData.push([]);
+  });
+  if(wsData.length<=1){alert('コメントがありません');return;}
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols']=[{wch:12},{wch:12},{wch:15},{wch:12},{wch:8},{wch:40}];
+  XLSX.utils.book_append_sheet(wb,ws,'コメント一覧');
+  XLSX.writeFile(wb,'コメント一覧.xlsx');
+}
+
+function exportScoreExcel(){
+  const wb=XLSX.utils.book_new();
+  const wsData=[['試合日','対戦相手','先攻後攻','1回','2回','3回','4回','5回','6回','サドン','アトムズ計','相手計','勝敗']];
+  [...games].sort((a,b)=>a.date.localeCompare(b.date)).forEach(g=>{
+    const sc=g.score||{batting:'先攻',atoms:[],opp:[]};
+    const aT=(sc.atoms||[]).reduce((s,v)=>s+(parseInt(v)||0),0);
+    const oT=(sc.opp||[]).reduce((s,v)=>s+(parseInt(v)||0),0);
+    const innings=[0,1,2,3,4,5,6].map(i=>sc.atoms[i]??'');
+    wsData.push([g.date,g.opp,sc.batting||'先攻',...innings,aT,oT,aT>oT?'勝ち':aT<oT?'負け':'引き分け']);
+  });
+  const ws=XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols']=[{wch:12},{wch:15},{wch:8},{wch:5},{wch:5},{wch:5},{wch:5},{wch:5},{wch:5},{wch:7},{wch:10},{wch:8},{wch:8}];
+  XLSX.utils.book_append_sheet(wb,ws,'スコア一覧');
+  XLSX.writeFile(wb,'スコア一覧.xlsx');
+}
+
+
+function saveData(){
+  // localStorageにも保存（オフライン時のフォールバック）
+  try{
+    localStorage.setItem('atoms_roster',JSON.stringify(roster));
+    localStorage.setItem('atoms_games',JSON.stringify(games));
+  }catch(e){}
+  // Firestoreに保存
+  db.collection('data').doc('main').set({
+    roster: roster,
+    games: games,
+    updatedAt: new Date().toISOString()
+  }).catch(e=>console.error('Firestore保存エラー:', e));
+}
+
+function exportData(){
+  const data={roster,games,exportedAt:new Date().toISOString()};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='gamenote_backup_'+new Date().toISOString().slice(0,10)+'.json';
+  a.style.display='none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(a.href);},100);
+}
+
+function importData(e){
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const data=JSON.parse(ev.target.result);
+      if(data.roster) roster=data.roster;
+      if(data.games) games=data.games;
+      saveData();renderGames();renderRoster();
+      alert('データを復元しました！');
+    }catch(err){alert('ファイルの読み込みに失敗しました');}
+    document.getElementById('import-file').value='';
+  };
+  reader.readAsText(file);
+}
+function loadData(){
+  // まずlocalStorageから読み込み（即時表示用フォールバック）
+  try{
+    const r=localStorage.getItem('atoms_roster');
+    const g=localStorage.getItem('atoms_games');
+    if(r) roster=JSON.parse(r);
+    if(g) games=JSON.parse(g);
+  }catch(e){}
+  // Firestoreから最新データを読み込み
+  db.collection('data').doc('main').get()
+    .then(docSnap=>{
+      if(docSnap.exists){
+        const data=docSnap.data();
+        if(data.roster) roster=data.roster;
+        if(data.games) games=data.games;
+        // localStorageも最新化
+        try{
+          localStorage.setItem('atoms_roster',JSON.stringify(roster));
+          localStorage.setItem('atoms_games',JSON.stringify(games));
+        }catch(e){}
+        // すでにログイン済みならUIを更新
+        if(role){renderGames();renderRoster();}
+      }
+    })
+    .catch(e=>console.error('Firestore読み込みエラー:', e));
+}
+document.addEventListener('DOMContentLoaded',loadData);
+</script>
+</body>
+</html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
