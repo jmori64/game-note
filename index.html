@@ -202,7 +202,7 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
     <input type="text" id="g-opp" placeholder="対戦相手"/>
     <div class="mbtns">
       <button class="cancel-btn" onclick="closeModal('mo-game')">キャンセル</button>
-      <button class="btn-primary" style="margin-bottom:0;" onclick="saveGame()">保存/button>
+      <button class="btn-primary" style="margin-bottom:0;" onclick="saveGame()">保存</button>
     </div>
   </div>
 </div>
@@ -952,11 +952,11 @@ function onFieldPlayerClick(idx){
     fieldSelected=null;
     renderField();
   } else {
-    // スタメン同士：選手ごと（名前+ポジション）を丸ごと入れ替え
+    // 守備ポジションだけ入れ替え（打順はそのまま）
     const g=games[currentGameIdx];
-    const tmp={...g.order[fieldSelected]};
-    g.order[fieldSelected]={...g.order[idx]};
-    g.order[idx]=tmp;
+    const tmpPos=g.order[fieldSelected].pos;
+    g.order[fieldSelected].pos=g.order[idx].pos;
+    g.order[idx].pos=tmpPos;
     fieldSelected=null;
     renderField();renderOrder();saveData();
   }
@@ -1708,4 +1708,4 @@ document.addEventListener('DOMContentLoaded',loadData);
 </script>
 </body>
 </html>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
+ 
