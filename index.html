@@ -999,6 +999,15 @@ function renderPitcherTable(){
   if(role==='manager') html+=`<button class="sbtn" onclick="openPitcherModal()" style="margin-bottom:12px;">＋ 投手を追加</button>`;
   if(role==='coach') html+='<p style="font-size:12px;color:#888;margin-bottom:8px;">球数のみ表示</p>';
   if(g.pitchers.length===0){html+='<p class="notice">投手記録がありません</p>';wrap.innerHTML=html;return;}
+  const mkRow=(num,name,val,target,ok)=>{
+    const b=val!=='-'?(ok?'<span style="color:#2e7d32;font-weight:700;font-size:14px;">✓</span>':'<span style="color:#c62828;font-weight:700;font-size:14px;">✗</span>'):'';
+    return '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #dbe8ff;">'
+      +'<span style="color:#888;min-width:18px;font-size:11px;">'+num+'</span>'
+      +'<span style="min-width:84px;font-weight:500;font-size:11px;">'+name+'</span>'
+      +'<span style="min-width:40px;font-weight:700;font-size:12px;">'+val+'</span>'
+      +'<span style="color:#888;font-size:10px;flex:1;">目標:'+target+'</span>'
+      +b+'</div>';
+  };
   g.pitchers.forEach((pt,pi)=>{
     const totals={};
     PITCHER_ROWS.forEach(row=>{totals[row]=INNINGS.reduce((s,inn)=>s+(parseInt(pt.data[row][inn])||0),0);});
@@ -1031,31 +1040,35 @@ function renderPitcherTable(){
     const pGBpct=(ps.total_batted+ps.h)>0?Math.round((ps.gb+ps.gb_hit)/(ps.total_batted+ps.h)*100):'-';
     const pIP=Math.round(ps.ip*100)/100;
 
+    // エリア1：実績（準備中）
+    const area1Html='<div style="background:#fff8e1;border-left:3px solid #f9a825;border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:8px;">'
+      +'<div style="font-weight:600;font-size:12px;color:#e65100;margin-bottom:2px;">① 実績</div>'
+      +'<div style="color:#aaa;font-size:11px;">（準備中）</div>'
+      +'</div>';
+
+    // エリア2：アトムズ投手陣指標・ターゲット
+    const area2Html=ps.cnt>0&&role==='manager'?
+      '<div style="background:#f0f7ff;border-left:3px solid #185fa5;border-radius:0 8px 8px 0;padding:10px 12px;margin-bottom:8px;">'
+      +'<div style="font-weight:600;font-size:12px;color:#185fa5;margin-bottom:8px;">② アトムズ投手陣指標・ターゲット　前'+ps.cnt+'試合累計</div>'
+      +'<div style="font-size:11px;font-weight:600;color:#333;margin-bottom:4px;">■ 共通指標</div>'
+      +mkRow('①','P/IP',pPIP!=='-'?String(pPIP):'-','15以下',pPIP!=='-'&&pPIP<=15)
+      +mkRow('②','WHIP+HBP',pWHIP,'1.2以下',pWHIP!=='-'&&parseFloat(pWHIP)<=1.2)
+      +mkRow('③','H/IP',pHIP,'1以下',pHIP!=='-'&&parseFloat(pHIP)<=1.0)
+      +mkRow('④','ER',String(ps.er),'IP×0.5以下',ps.ip>0&&ps.er<=ps.ip*0.5)
+      +'<div style="font-size:11px;font-weight:600;color:#333;margin-top:8px;margin-bottom:4px;">■ タイプ別指標</div>'
+      +mkRow('⑤','K/(BB+HBP)',pKBB,'2以上',pKBB!=='∞'&&pKBB!=='-'&&parseFloat(pKBB)>=2)
+      +mkRow('⑥','GB%',pGBpct!=='-'?pGBpct+'%':'-','60%以上',pGBpct!=='-'&&pGBpct>=60)
+      +'</div>'
+      :'';
+
     html+=`<div style="margin-bottom:1.5rem;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
         <p style="font-size:14px;font-weight:500;color:#1a1a1a;">${pt.num?pt.num+'. ':''}${pt.name}</p>
         ${role==='manager'?`<button class="sbtn sbtn-danger" onclick="deletePitcher(${pi})">削除</button>`:''}
       </div>
-      ${ps.cnt>0?`<div style="background:#f0f7ff;border-left:3px solid #185fa5;border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:8px;font-size:12px;">
-        <span style="font-weight:500;color:#185fa5;">前${ps.cnt}試合までの累計</span>
-        <div style="margin-top:6px;display:flex;gap:16px;color:#1a1a1a;flex-wrap:wrap;">
-          <span>P/IP <b>${pPIP}</b></span>
-          <span>一試合平均球数 <b>${ps.cnt>0?Math.round(ps.pitches/ps.cnt):'-'}</b></span>
-          ${role==='manager'?`
-          <span>WHIP+HBP <b>${pWHIP}</b></span>
-          <span>H/IP <b>${pHIP}</b></span>
-          <span>ER <b>${ps.er}</b></span>
-          <span>K/(BB+HBP) <b>${pKBB}</b></span>
-          <span>GB% <b>${pGBpct}${pGBpct!=='-'?'%':''}</b></span>`:''}
-        </div>
-        ${role==='manager'?`<div style="margin-top:6px;color:#888;font-size:11px;line-height:1.6;">
-          P/IP：1イニング平均球数。少ないほど効率的。<br>
-          WHIP+HBP：(四球+死球+被安打)÷投球回。1.50以下が目安。<br>
-          H/IP：1イニング平均被安打。低いほど◎。<br>
-          K/(BB+HBP)：三振÷(四球+死球)。1.00以上が安定の目安。<br>
-          GB%：(ゴロアウト+ゴロ安打)÷(全打球アウト+被安打)。高いほど芯を外せている。
-        </div>`:''}
-      </div>`:''}
+      ${area1Html}
+      ${area2Html}
+      <div style="font-weight:600;font-size:12px;color:#333;margin-bottom:4px;">③ 基礎数値</div>
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
       <table style="border-collapse:collapse;font-size:12px;min-width:100%;border:0.5px solid #ddd;">
         <thead><tr>
