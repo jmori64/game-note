@@ -198,12 +198,7 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
 <div class="modal-overlay" id="mo-game">
   <div class="modal">
     <h3>試合を追加</h3>
-    <select id="g-category" style="width:100%;padding:10px 12px;border:0.5px solid #ccc;border-radius:10px;font-size:15px;margin-bottom:8px;">
-      <option value="">試合分類（任意）</option>
-      <option value="練習試合">練習試合</option>
-      <option value="公式戦">公式戦</option>
-      <option value="大会">大会</option>
-    </select>
+    <input type="text" id="g-category" placeholder="試合分類（例：練習試合、公式戦）"/>
     <input type="date" id="g-date"/>
     <input type="text" id="g-opp" placeholder="対戦相手"/>
     <div class="mbtns">
@@ -231,12 +226,7 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
 <div class="modal-overlay" id="mo-game-edit">
   <div class="modal">
     <h3>試合を編集</h3>
-    <select id="ge-category" style="width:100%;padding:10px 12px;border:0.5px solid #ccc;border-radius:10px;font-size:15px;margin-bottom:8px;">
-      <option value="">試合分類（任意）</option>
-      <option value="練習試合">練習試合</option>
-      <option value="公式戦">公式戦</option>
-      <option value="大会">大会</option>
-    </select>
+    <input type="text" id="ge-category" placeholder="試合分類（例：練習試合、公式戦）"/>
     <input type="date" id="ge-date"/>
     <input type="text" id="ge-opp" placeholder="対戦相手"/>
     <input type="text" id="ge-result" placeholder="結果（例：旭0-6ア）"/>
