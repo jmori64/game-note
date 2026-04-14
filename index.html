@@ -1040,11 +1040,82 @@ function renderPitcherTable(){
     const pGBpct=(ps.total_batted+ps.h)>0?Math.round((ps.gb+ps.gb_hit)/(ps.total_batted+ps.h)*100):'-';
     const pIP=Math.round(ps.ip*100)/100;
 
-    // エリア1：実績（準備中）
-    const area1Html='<div style="background:#fff8e1;border-left:3px solid #f9a825;border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:8px;">'
-      +'<div style="font-weight:600;font-size:12px;color:#e65100;margin-bottom:2px;">① 実績</div>'
-      +'<div style="color:#aaa;font-size:11px;">（準備中）</div>'
-      +'</div>';
+    // エリア1：実績
+    const prev3=prevGames2.slice(-3);
+    const pastByInn={};
+    INNINGS.forEach(i=>{pastByInn[i]={p:0,ip:0,bb:0,hbp:0,h:0,k:0,er:0,gb:0,gbh:0,tb:0};});
+    prev3.forEach(pg=>{
+      if(!pg.pitchers) return;
+      const pp=pg.pitchers.find(x=>x.name===pt.name);
+      if(!pp||!pp.data) return;
+      INNINGS.forEach(i=>{
+        pastByInn[i].p+=parseInt(pp.data['球数']?.[i])||0;
+        pastByInn[i].ip+=parseFloat(pp.data['投球回']?.[i])||0;
+        pastByInn[i].bb+=parseInt(pp.data['与四球']?.[i])||0;
+        pastByInn[i].hbp+=parseInt(pp.data['死球']?.[i])||0;
+        pastByInn[i].h+=parseInt(pp.data['被安打']?.[i])||0;
+        pastByInn[i].k+=parseInt(pp.data['奪三振']?.[i])||0;
+        pastByInn[i].er+=parseInt(pp.data['自責点']?.[i])||0;
+        pastByInn[i].gb+=parseInt(pp.data['ゴロ']?.[i])||0;
+        pastByInn[i].gbh+=parseInt(pp.data['ゴロ安打']?.[i])||0;
+        pastByInn[i].tb+=parseInt(pp.data['全打球']?.[i])||0;
+      });
+    });
+    const curByInn={};
+    INNINGS.forEach(i=>{curByInn[i]={
+      p:parseInt(pt.data['球数']?.[i])||0,
+      ip:parseFloat(pt.data['投球回']?.[i])||0,
+      bb:parseInt(pt.data['与四球']?.[i])||0,
+      hbp:parseInt(pt.data['死球']?.[i])||0,
+      h:parseInt(pt.data['被安打']?.[i])||0,
+      k:parseInt(pt.data['奪三振']?.[i])||0,
+      er:parseInt(pt.data['自責点']?.[i])||0,
+      gb:parseInt(pt.data['ゴロ']?.[i])||0,
+      gbh:parseInt(pt.data['ゴロ安打']?.[i])||0,
+      tb:parseInt(pt.data['全打球']?.[i])||0,
+    };});
+    const sumD=(byInn)=>INNINGS.reduce((a,i)=>{Object.keys(byInn[i]).forEach(k=>{a[k]=(a[k]||0)+byInn[i][k];});return a;},{p:0,ip:0,bb:0,hbp:0,h:0,k:0,er:0,gb:0,gbh:0,tb:0});
+    const calcM=(d)=>({
+      pip: d.ip>0?Math.round(d.p/d.ip):'-',
+      whip: d.ip>0?((d.bb+d.hbp+d.h)/d.ip).toFixed(2):'-',
+      hip: d.ip>0?(d.h/d.ip).toFixed(2):'-',
+      er: d.ip>0?String(d.er):'-',
+      kbb: (d.bb+d.hbp)>0?(d.k/(d.bb+d.hbp)).toFixed(2):(d.ip>0?'∞':'-'),
+      gb: (d.tb+d.h)>0?Math.round((d.gb+d.gbh)/(d.tb+d.h)*100)+'%':'-',
+    });
+    const pastTot=sumD(pastByInn);
+    const curTot=sumD(curByInn);
+    const mRows=[{l:'P/IP',k:'pip'},{l:'WHIP+HBP',k:'whip'},{l:'H/IP',k:'hip'},{l:'ER',k:'er'},{l:'K/(BB+HBP)',k:'kbb'},{l:'GB%',k:'gb'}];
+    const thS='padding:3px 5px;border:0.5px solid #ddd;text-align:center;font-size:10px;white-space:nowrap;';
+    const tdLS='padding:3px 5px;background:#f5f5f5;border:0.5px solid #ddd;font-size:10px;font-weight:500;white-space:nowrap;position:sticky;left:0;';
+    const tdGS='padding:3px 5px;background:#fffdf0;border:0.5px solid #ddd;text-align:center;font-size:10px;';
+    const tdCS='padding:3px 5px;background:#f0f7ff;border:0.5px solid #ddd;text-align:center;font-size:10px;';
+    let a1rows='';
+    mRows.forEach(m=>{
+      a1rows+='<tr><td style="'+tdLS+'">'+m.l+'</td>';
+      INNINGS.forEach(i=>{a1rows+='<td style="'+tdGS+'">'+calcM(pastByInn[i])[m.k]+'</td>';});
+      a1rows+='<td style="'+tdGS+'font-weight:700;">'+calcM(pastTot)[m.k]+'</td>';
+      INNINGS.forEach(i=>{a1rows+='<td style="'+tdCS+'">'+calcM(curByInn[i])[m.k]+'</td>';});
+      a1rows+='<td style="'+tdCS+'font-weight:700;">'+calcM(curTot)[m.k]+'</td>';
+      a1rows+='</tr>';
+    });
+    const area1Html='<div style="background:#fffbf0;border-left:3px solid #f9a825;border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:8px;">'
+      +'<div style="font-weight:600;font-size:12px;color:#e65100;margin-bottom:6px;">① 実績</div>'
+      +'<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
+      +'<table style="border-collapse:collapse;min-width:100%;">'
+      +'<thead><tr>'
+      +'<th style="'+thS+'background:#f5f5f5;position:sticky;left:0;">指標</th>'
+      +'<th colspan="'+(INNINGS.length+1)+'" style="'+thS+'background:#fff3cd;">過去'+prev3.length+'試合</th>'
+      +'<th colspan="'+(INNINGS.length+1)+'" style="'+thS+'background:#cfe2ff;">この試合</th>'
+      +'</tr><tr>'
+      +'<th style="'+thS+'background:#f5f5f5;position:sticky;left:0;"></th>'
+      +INNINGS.map(i=>'<th style="'+thS+'background:#fff3cd;">'+(i===7?'S':i)+'</th>').join('')
+      +'<th style="'+thS+'background:#fff3cd;">計</th>'
+      +INNINGS.map(i=>'<th style="'+thS+'background:#cfe2ff;">'+(i===7?'S':i)+'</th>').join('')
+      +'<th style="'+thS+'background:#cfe2ff;">計</th>'
+      +'</tr></thead>'
+      +'<tbody>'+a1rows+'</tbody>'
+      +'</table></div></div>';
 
     // エリア2：アトムズ投手陣指標・ターゲット（静的テキスト）
     const area2Html=role==='manager'?
