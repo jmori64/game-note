@@ -1031,6 +1031,7 @@ function renderPitcherTable(){
       ${ps.cnt>0?`<div style="background:#f0f7ff;border-left:3px solid #185fa5;border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:8px;font-size:12px;">
         <span style="font-weight:500;color:#185fa5;">前${ps.cnt}試合までの累計</span>
         <div style="margin-top:6px;display:flex;gap:16px;color:#1a1a1a;flex-wrap:wrap;">
+          <span>一イニング平均投球数 <b>${ps.ip>0?Math.round(ps.pitches/ps.ip):'-'}</b></span>
           <span>一試合平均投球数 <b>${Math.round(ps.pitches/ps.cnt)}</b></span>
           ${role==='manager'?`<span>WHIP <b>${pWHIP}</b></span><span>K/BB <b>${pKBB}</b></span>`:''}
         </div>
