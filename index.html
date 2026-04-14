@@ -345,6 +345,7 @@ const INNINGS=[1,2,3,4,5,6,7];
 
 let roster=[];
 let games=[];
+let dataVersion=0; // 楽観的ロック用バージョン番号
 
 // ── PIN ──
 function showPin(){
@@ -1759,12 +1760,47 @@ function saveData(){
     localStorage.setItem('atoms_roster',JSON.stringify(roster));
     localStorage.setItem('atoms_games',JSON.stringify(games));
   }catch(e){}
-  // Firestoreに保存
-  db.collection('data').doc('main').set({
-    roster: roster,
-    games: games,
-    updatedAt: new Date().toISOString()
-  }).catch(e=>console.error('Firestore保存エラー:', e));
+  // Firestoreにトランザクションで保存（バージョンチェック付き）
+  const versionAtSave=dataVersion;
+  const docRef=db.collection('data').doc('main');
+  db.runTransaction(transaction=>{return transaction.get(docRef).then(doc=>{
+      const serverVersion=doc.exists?(doc.data().version||0):0;
+      if(serverVersion>versionAtSave){
+        const err=new Error('CONFLICT');
+        err.isConflict=true;
+        throw err;
+      }
+      transaction.set(docRef,{
+        roster:roster,
+        games:games,
+        version:serverVersion+1,
+        updatedAt:new Date().toISOString()
+      });
+      return serverVersion+1;
+    });
+  })
+  .then(newVersion=>{dataVersion=newVersion;})
+  .catch(e=>{
+    if(e.isConflict){
+      alert('⚠️ 別の端末・タブでデータが更新されています。\n最新データを読み込みます。');
+      const first=confirm('自分のデータで上書きしますか？\n（サーバーの最新データが失われます）');
+      if(first){
+        const second=confirm('本当に上書きしますか？\nこの操作は取り消せません。');
+        if(second){
+          // 強制上書き（バージョンチェックをスキップ）
+          docRef.set({
+            roster:roster,
+            games:games,
+            version:dataVersion+1,
+            updatedAt:new Date().toISOString()
+          }).then(()=>{dataVersion=dataVersion+1;})
+            .catch(err=>console.error('強制保存エラー:',err));
+        }
+      }
+    }else{
+      console.error('Firestore保存エラー:',e);
+    }
+  });
 }
 
 function exportData(){
@@ -1809,6 +1845,7 @@ function loadData(){
       const data=docSnap.data();
       if(data.roster) roster=data.roster;
       if(data.games) games=data.games;
+      dataVersion=data.version||0; // バージョンを常に最新に保つ
       // localStorageも最新化
       try{
         localStorage.setItem('atoms_roster',JSON.stringify(roster));
