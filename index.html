@@ -858,11 +858,10 @@ function onOrderPlayerClick(idx){
     orderSelected=null;
     renderOrder();
   } else {
-    // 2人目選択→入れ替え（スタメン同士）
-    const nameA=g.order[orderSelected].name;
-    const nameB=g.order[idx].name;
-    g.order[orderSelected].name=nameB;
-    g.order[idx].name=nameA;
+    // 2人目選択→打順入れ替え（名前+ポジションごと移動）
+    const tmp={...g.order[orderSelected]};
+    g.order[orderSelected]={...g.order[idx]};
+    g.order[idx]=tmp;
     orderSelected=null;
     renderOrder();renderField();saveData();
   }
@@ -952,11 +951,11 @@ function onFieldPlayerClick(idx){
     fieldSelected=null;
     renderField();
   } else {
-    // 守備ポジションだけ入れ替え（打順はそのまま）
+    // 名前・背番号・ポジションごと入れ替え（打順番号はそのまま）
     const g=games[currentGameIdx];
-    const tmpPos=g.order[fieldSelected].pos;
-    g.order[fieldSelected].pos=g.order[idx].pos;
-    g.order[idx].pos=tmpPos;
+    const tmp={...g.order[fieldSelected]};
+    g.order[fieldSelected]={...g.order[idx]};
+    g.order[idx]=tmp;
     fieldSelected=null;
     renderField();renderOrder();saveData();
   }
