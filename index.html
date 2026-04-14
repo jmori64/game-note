@@ -1479,21 +1479,13 @@ function renderComments(){
 
   if(isManager||role==='coach'){
     const isM=isManager;
-    if(!isM) _commentType='Good';
+    // デフォルトでGoodを選択済みにする
+    if(_commentType==='') _commentType='Good';
     html+=`<div style="margin-bottom:1rem;">
-      <label style="font-size:12px;color:#888;display:block;margin-bottom:4px;">選手を選択</label>
-      <select id="comment-player" style="width:100%;margin-bottom:8px;">
-        <option value="">選手を選ぶ</option>
-        ${roster.map((p,i)=>`<option value="${i}">${p.num} ${p.name}</option>`).join('')}
-      </select>
-      <label style="font-size:12px;color:#888;display:block;margin-bottom:4px;">種別 <span style="color:#a32d2d;">*</span></label>
-      <div style="display:flex;gap:8px;margin-bottom:8px;">
-        <button id="type-good" onclick="setCommentType('Good')" style="flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;background:${!isM?'#dcfce7':'#fff'};color:${!isM?'#166534':'#1a1a1a'};font-size:14px;cursor:pointer;">👍 Good</button>
-        ${isM?`<button id="type-improve" onclick="setCommentType('Improve')" style="flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;background:#fff;font-size:14px;cursor:pointer;">📈 Improve</button>`:''}
-      </div>
-      <label style="font-size:12px;color:#888;display:block;margin-bottom:4px;">コメントする人 ${isM?'<span style="color:#a32d2d;">*</span>':''}</label>
+      <label style="font-size:12px;color:#888;display:block;margin-bottom:2px;">コメントする人 ${isM?'<span style="color:#a32d2d;">*</span>':''}</label>
+      <p style="font-size:11px;color:#bbb;margin:0 0 6px;">未入力の場合、匿名投稿になります</p>
       ${isM
-        ? `<select id="comment-author" style="width:100%;margin-bottom:8px;">
+        ? `<select id="comment-author" style="width:100%;margin-bottom:12px;">
             <option value="">選択してください</option>
             <option value="漆畑C">漆畑C</option>
             <option value="蟹谷C">蟹谷C</option>
@@ -1501,11 +1493,23 @@ function renderComments(){
             <option value="貫井C">貫井C</option>
             <option value="森C">森C</option>
           </select>`
-        : `<input type="text" id="comment-author" placeholder="名前を入力..." style="width:100%;margin-bottom:8px;padding:8px;border:0.5px solid #ccc;border-radius:8px;font-size:14px;">`
+        : `<input type="text" id="comment-author" placeholder="名前を入力..." style="width:100%;margin-bottom:12px;padding:8px;border:0.5px solid #ccc;border-radius:8px;font-size:14px;">`
       }
-      <label style="font-size:12px;color:#888;display:block;margin-bottom:4px;">コメント <span style="color:#a32d2d;">*</span></label>
+      <label style="font-size:12px;color:#888;display:block;margin-bottom:2px;">コメントを送る選手</label>
+      <p style="font-size:11px;color:#bbb;margin:0 0 6px;">未選択の場合、チーム全体へのコメントになります</p>
+      <select id="comment-player" style="width:100%;margin-bottom:12px;">
+        <option value="">選手を選ぶ</option>
+        ${roster.map((p,i)=>`<option value="${i}">${p.num} ${p.name}</option>`).join('')}
+      </select>
+      <label style="font-size:12px;color:#888;display:block;margin-bottom:6px;">種別 <span style="color:#a32d2d;">*</span></label>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <button id="type-good" onclick="setCommentType('Good')" style="flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;background:#dcfce7;color:#166534;font-size:14px;cursor:pointer;font-weight:500;">👍 Good</button>
+        ${isM?`<button id="type-improve" onclick="setCommentType('Improve')" style="flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;background:#fff;color:#1a1a1a;font-size:14px;cursor:pointer;">📈 Improve</button>`:''}
+      </div>
+      <label style="font-size:12px;color:#888;display:block;margin-bottom:2px;">コメント <span style="color:#a32d2d;">*</span></label>
+      <p style="font-size:11px;color:#bbb;margin:0 0 6px;">賞賛、激励、笑い、等のコメントで試合を盛り上げましょ～😄</p>
       <textarea id="comment-text" placeholder="コメントを入力..." style="width:100%;height:80px;padding:8px;border:0.5px solid #ccc;border-radius:8px;font-size:14px;resize:none;"></textarea>
-      <button onclick="addComment()" class="btn-primary" style="margin-top:8px;">コメントを追加</button>
+      <button onclick="addComment()" class="btn-primary" style="margin-top:8px;">コメントを送る</button>
     </div>`;
   }
 
@@ -1564,7 +1568,12 @@ function addComment(){
     postedAt,
     createdAt:firebase.firestore.FieldValue.serverTimestamp()
   }).catch(err=>console.error('コメント保存エラー:',err));
-  _commentType='';
+  // 送信後：Goodにリセットしてボタン表示を戻す
+  _commentType='Good';
+  const tg=document.getElementById('type-good');
+  const ti=document.getElementById('type-improve');
+  if(tg) tg.style.cssText='flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;font-size:14px;cursor:pointer;background:#dcfce7;color:#166534;font-weight:500;';
+  if(ti) ti.style.cssText='flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;font-size:14px;cursor:pointer;background:#fff;color:#1a1a1a;';
   // UIはonSnapshotが自動更新するため手動renderComments()不要
   document.getElementById('comment-text').value='';
 }
