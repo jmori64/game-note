@@ -1300,7 +1300,7 @@ function renderPitcherTable(){
       +'</table></div></div>';
 
     // エリア2：アトムズ投手陣指標・ターゲット（静的テキスト）
-    const area2Html=role==='manager'?
+    const area2Html=(role==='manager'||role==='staff')?
       '<div style="background:#f0f7ff;border-left:3px solid #185fa5;border-radius:0 8px 8px 0;padding:10px 12px;margin-bottom:8px;font-size:11px;line-height:1.9;color:#1a1a1a;">'
       +'<div style="font-weight:600;font-size:12px;color:#185fa5;margin-bottom:6px;">② アトムズ投手陣指標・ターゲット</div>'
       +'<div style="font-weight:600;color:#333;margin-bottom:2px;">■ 共通指標</div>'
