@@ -374,7 +374,7 @@ let fieldSelected=null;
 let pinDigits=[];
 const PIN_CORRECT='0527';        // データ更新者（表示3桁・実態4桁）
 let pinDigitsStaff=[];
-const PIN_CORRECT_STAFF='78963'; // 代表、ベンチコーチ、スコアラー（表示3桁・実態5桁）
+const PIN_CORRECT_STAFF='996633'; // 代表、ベンチコーチ、スコアラー（表示3桁・実態6桁）
 let pinDigitsCoach=[];
 const PIN_CORRECT_COACH='555';   // チーム関係者
 let numpadTarget={pitcherIdx:null,row:null,inning:null};
@@ -424,7 +424,7 @@ function hidePinStaff(){
   document.getElementById('pin-screen-staff').style.display='none';
   showAllRoleBtns();
 }
-function pinInputStaff(n){if(pinDigitsStaff.length>=5)return;pinDigitsStaff.push(n);updatePinDisplayStaff();if(pinDigitsStaff.length===5)checkPinStaff();}
+function pinInputStaff(n){if(pinDigitsStaff.length>=6)return;pinDigitsStaff.push(n);updatePinDisplayStaff();if(pinDigitsStaff.length===6)checkPinStaff();}
 function pinBackStaff(){pinDigitsStaff.pop();updatePinDisplayStaff();document.getElementById('pin-error-staff').style.display='none';}
 function pinClearStaff(){pinDigitsStaff=[];updatePinDisplayStaff();document.getElementById('pin-error-staff').style.display='none';}
 function updatePinDisplayStaff(){
