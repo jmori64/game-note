@@ -74,6 +74,8 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
   <div style="margin:2.5rem 0 2rem;">
     <p style="font-size:22px;font-weight:500;color:#1a1a1a;margin-bottom:6px;">Game Note</p>
   </div>
+
+  <!-- チーム関係者 -->
   <button class="btn-role" id="btn-coach-role" onclick="showPinCoach()">
     <div class="role-icon" style="background:#fee2e2;">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -99,12 +101,41 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
     <p id="pin-error-coach" style="font-size:12px;color:#a32d2d;text-align:center;margin-top:12px;display:none;">暗証番号が違います</p>
     <button onclick="hidePinCoach()" style="display:block;margin:16px auto 0;font-size:13px;color:#888;background:none;border:none;cursor:pointer;">← 戻る</button>
   </div>
+
+  <!-- 代表、ベンチコーチ、スコアラー（閲覧） -->
+  <button class="btn-role" id="btn-staff-role" onclick="showPinStaff()">
+    <div class="role-icon" style="background:#e6f1fb;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#185fa5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
+      </svg></div>
+    <div><div class="role-label">代表、ベンチコーチ、スコアラー</div><div class="role-desc">データの閲覧ができます</div></div>
+  </button>
+  <div id="pin-screen-staff" style="display:none;margin-top:1.5rem;">
+    <p style="font-size:13px;color:#888;margin-bottom:1rem;text-align:center;">暗証番号を入力してください</p>
+    <div style="display:flex;justify-content:center;gap:12px;margin-bottom:1.25rem;">
+      <div id="pin-s1" style="width:52px;height:64px;border:0.5px solid #ddd;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:500;color:#1a1a1a;">-</div>
+      <div id="pin-s2" style="width:52px;height:64px;border:0.5px solid #ddd;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:500;color:#1a1a1a;">-</div>
+      <div id="pin-s3" style="width:52px;height:64px;border:0.5px solid #ddd;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:500;color:#1a1a1a;">-</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:240px;margin:0 auto;">
+      <button class="pin-key" onclick="pinInputStaff(1)">1</button><button class="pin-key" onclick="pinInputStaff(2)">2</button><button class="pin-key" onclick="pinInputStaff(3)">3</button>
+      <button class="pin-key" onclick="pinInputStaff(4)">4</button><button class="pin-key" onclick="pinInputStaff(5)">5</button><button class="pin-key" onclick="pinInputStaff(6)">6</button>
+      <button class="pin-key" onclick="pinInputStaff(7)">7</button><button class="pin-key" onclick="pinInputStaff(8)">8</button><button class="pin-key" onclick="pinInputStaff(9)">9</button>
+      <button class="pin-key" onclick="pinClearStaff()" style="font-size:13px;color:#888;">C</button>
+      <button class="pin-key" onclick="pinInputStaff(0)">0</button>
+      <button class="pin-key" onclick="pinBackStaff()" style="font-size:16px;">⌫</button>
+    </div>
+    <p id="pin-error-staff" style="font-size:12px;color:#a32d2d;text-align:center;margin-top:12px;display:none;">暗証番号が違います</p>
+    <button onclick="hidePinStaff()" style="display:block;margin:16px auto 0;font-size:13px;color:#888;background:none;border:none;cursor:pointer;">← 戻る</button>
+  </div>
+
+  <!-- データ更新者 -->
   <button class="btn-role" id="btn-manager-role" onclick="showPin()">
     <div class="role-icon" style="background:#f1f1f1;">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
       </svg></div>
-    <div><div class="role-label">代表、ベンチコーチ、スコアラー</div><div class="role-desc">データの作成・編集ができます</div></div>
+    <div><div class="role-label">データ更新者</div><div class="role-desc">データの作成・編集ができます</div></div>
   </button>
   <div id="pin-screen" style="display:none;margin-top:1.5rem;">
     <p style="font-size:13px;color:#888;margin-bottom:1rem;text-align:center;">暗証番号を入力してください</p>
@@ -335,9 +366,11 @@ const posCoords={'中':[250,50],'左':[100,100],'右':[400,100],'遊':[145,165],
 let role='', currentGameIdx=-1, editPlayerIdx=-1;
 let fieldSelected=null;
 let pinDigits=[];
-const PIN_CORRECT='527';
+const PIN_CORRECT='527';         // データ更新者
+let pinDigitsStaff=[];
+const PIN_CORRECT_STAFF='563';   // 代表、ベンチコーチ、スコアラー
 let pinDigitsCoach=[];
-const PIN_CORRECT_COACH='555';
+const PIN_CORRECT_COACH='555';   // チーム関係者
 let numpadTarget={pitcherIdx:null,row:null,inning:null};
 let numpadVal='';
 const PITCHER_ROWS=['球数','投球回','与四球','死球','奪三振','被安打','自責点','ゴロ','ゴロ安打','全打球'];
@@ -375,6 +408,27 @@ function checkPin(){
   else{document.getElementById('pin-error').style.display='block';setTimeout(()=>{pinDigits=[];updatePinDisplay();document.getElementById('pin-error').style.display='none';},900);}
 }
 
+function showPinStaff(){
+  pinDigitsStaff=[];updatePinDisplayStaff();
+  document.getElementById('pin-screen-staff').style.display='block';
+  document.getElementById('pin-error-staff').style.display='none';
+  document.getElementById('btn-staff-role').style.display='none';
+}
+function hidePinStaff(){
+  document.getElementById('pin-screen-staff').style.display='none';
+  document.getElementById('btn-staff-role').style.display='flex';
+}
+function pinInputStaff(n){if(pinDigitsStaff.length>=3)return;pinDigitsStaff.push(n);updatePinDisplayStaff();if(pinDigitsStaff.length===3)checkPinStaff();}
+function pinBackStaff(){pinDigitsStaff.pop();updatePinDisplayStaff();document.getElementById('pin-error-staff').style.display='none';}
+function pinClearStaff(){pinDigitsStaff=[];updatePinDisplayStaff();document.getElementById('pin-error-staff').style.display='none';}
+function updatePinDisplayStaff(){
+  ['pin-s1','pin-s2','pin-s3'].forEach((id,i)=>{document.getElementById(id).textContent=pinDigitsStaff[i]!==undefined?'●':'-';});
+}
+function checkPinStaff(){
+  if(pinDigitsStaff.join('')===PIN_CORRECT_STAFF){document.getElementById('pin-screen-staff').style.display='none';doLogin('staff');}
+  else{document.getElementById('pin-error-staff').style.display='block';setTimeout(()=>{pinDigitsStaff=[];updatePinDisplayStaff();document.getElementById('pin-error-staff').style.display='none';},900);}
+}
+
 function showPinCoach(){
   pinDigitsCoach=[];updatePinDisplayCoach();
   document.getElementById('pin-screen-coach').style.display='block';
@@ -402,15 +456,18 @@ function doLogin(r){
   document.getElementById('s-login').style.display='none';
   document.getElementById('s-main').style.display='block';
   const b=document.getElementById('role-badge');
-  b.textContent=role==='manager'?'代表、ベンチコーチ、スコアラー':'関係者';
-  b.className='badge '+(role==='manager'?'badge-manager':'badge-coach');
+  if(role==='manager') { b.textContent='データ更新者'; b.className='badge badge-coach'; }
+  else if(role==='staff') { b.textContent='代表・コーチ・スコアラー'; b.className='badge badge-manager'; }
+  else { b.textContent='関係者'; b.className='badge badge-coach'; }
+  // 作成・編集ボタン：managerのみ
   document.getElementById('div-game-add').style.display=role==='manager'?'block':'none';
   document.getElementById('btn-export').style.display=role==='manager'?'':'none';
   document.getElementById('btn-import-label').style.display=role==='manager'?'':'none';
-  document.getElementById('btn-excel').style.display=role==='manager'?'':'none';
+  document.getElementById('btn-excel').style.display=(role==='manager'||role==='staff')?'':'none';
   document.getElementById('div-roster-add').style.display=role==='manager'?'block':'none';
   document.getElementById('div-roster-notice').style.display=role==='coach'?'block':'none';
-  document.getElementById('nav-roster-btn').style.display=role==='manager'?'':'none';
+  // 選手登録タブ：manager・staff は表示、coach は非表示
+  document.getElementById('nav-roster-btn').style.display=(role==='manager'||role==='staff')?'':'none';
   renderGames();renderRoster();
   if(role==='coach'){
     document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));
@@ -704,8 +761,9 @@ function openGame(idx){
   document.getElementById('s-main').style.display='none';
   document.getElementById('s-game').style.display='block';
   const b=document.getElementById('role-badge2');
-  b.textContent=role==='manager'?'代表、ベンチコーチ、スコアラー':'関係者';
-  b.className='badge '+(role==='manager'?'badge-manager':'badge-coach');
+  if(role==='manager'){ b.textContent='データ更新者'; b.className='badge badge-coach'; }
+  else if(role==='staff'){ b.textContent='代表・コーチ・スコアラー'; b.className='badge badge-manager'; }
+  else { b.textContent='関係者'; b.className='badge badge-coach'; }
   const g=games[idx];
   document.getElementById('game-info-header').innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -720,7 +778,8 @@ function openGame(idx){
   if(pitcherTab) pitcherTab.style.display='';
   const commentTab=document.getElementById('tab-comment-btn');
   if(commentTab) commentTab.style.display='';
-  document.getElementById('div-order-notice').style.display=role==='coach'?'block':'none';
+  // staffはcoachと同様に閲覧モード表示
+  document.getElementById('div-order-notice').style.display=(role==='coach'||role==='staff')?'block':'none';
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',i===0));
   document.getElementById('gt-field').style.display='block';
   document.getElementById('gt-order').style.display='none';
@@ -1028,8 +1087,10 @@ function backToLogin(){
   document.getElementById('s-main').style.display='none';
   document.getElementById('s-login').style.display='block';
   document.getElementById('pin-screen').style.display='none';
+  document.getElementById('pin-screen-staff').style.display='none';
   document.getElementById('pin-screen-coach').style.display='none';
   document.getElementById('btn-manager-role').style.display='flex';
+  document.getElementById('btn-staff-role').style.display='flex';
   document.getElementById('btn-coach-role').style.display='flex';
   role='';
 }
@@ -1475,9 +1536,10 @@ function renderComments(){
   if(!g) return;
   const wrap=document.getElementById('comment-content');
   const isManager=role==='manager';
+  const canSeeAll=role==='manager'||role==='staff'; // Improveコメントも閲覧可
   let html='';
 
-  if(isManager||role==='coach'){
+  if(isManager||role==='staff'||role==='coach'){
     const isM=isManager;
     // デフォルトでGoodを選択済みにする
     if(_commentType==='') _commentType='Good';
@@ -1514,7 +1576,7 @@ function renderComments(){
   }
 
   const allComments=[...currentGameComments].reverse();
-  const visibleComments=isManager?allComments:allComments.filter(c=>c.type==='Good'||!c.type);
+  const visibleComments=canSeeAll?allComments:allComments.filter(c=>c.type==='Good'||!c.type);
   if(visibleComments.length===0){
     html+='<p class="notice">コメントがありません</p>';
   } else {
