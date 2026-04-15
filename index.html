@@ -108,7 +108,7 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#185fa5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
       </svg></div>
-    <div><div class="role-label">代表、ベンチコーチ、スコアラー</div><div class="role-desc">データの閲覧ができます</div></div>
+    <div><div class="role-label">代表、ベンチコーチ、スコアラー</div><div class="role-desc">すべてのデータの閲覧ができます</div></div>
   </button>
   <div id="pin-screen-staff" style="display:none;margin-top:1.5rem;">
     <p style="font-size:13px;color:#888;margin-bottom:1rem;text-align:center;">暗証番号を入力してください</p>
@@ -368,7 +368,7 @@ let fieldSelected=null;
 let pinDigits=[];
 const PIN_CORRECT='527';         // データ更新者
 let pinDigitsStaff=[];
-const PIN_CORRECT_STAFF='563';   // 代表、ベンチコーチ、スコアラー
+const PIN_CORRECT_STAFF='78963'; // 代表、ベンチコーチ、スコアラー（表示3桁・実態5桁）
 let pinDigitsCoach=[];
 const PIN_CORRECT_COACH='555';   // チーム関係者
 let numpadTarget={pitcherIdx:null,row:null,inning:null};
@@ -405,7 +405,7 @@ function updatePinDisplay(){
 }
 function checkPin(){
   if(pinDigits.join('')===PIN_CORRECT){document.getElementById('pin-screen').style.display='none';doLogin('manager');}
-  else{document.getElementById('pin-error').style.display='block';setTimeout(()=>{pinDigits=[];updatePinDisplay();document.getElementById('pin-error').style.display='none';},900);}
+  else{recordLoginError('manager');document.getElementById('pin-error').style.display='block';setTimeout(()=>{pinDigits=[];updatePinDisplay();document.getElementById('pin-error').style.display='none';},900);}
 }
 
 function showPinStaff(){
@@ -418,7 +418,7 @@ function hidePinStaff(){
   document.getElementById('pin-screen-staff').style.display='none';
   showAllRoleBtns();
 }
-function pinInputStaff(n){if(pinDigitsStaff.length>=3)return;pinDigitsStaff.push(n);updatePinDisplayStaff();if(pinDigitsStaff.length===3)checkPinStaff();}
+function pinInputStaff(n){if(pinDigitsStaff.length>=5)return;pinDigitsStaff.push(n);updatePinDisplayStaff();if(pinDigitsStaff.length===5)checkPinStaff();}
 function pinBackStaff(){pinDigitsStaff.pop();updatePinDisplayStaff();document.getElementById('pin-error-staff').style.display='none';}
 function pinClearStaff(){pinDigitsStaff=[];updatePinDisplayStaff();document.getElementById('pin-error-staff').style.display='none';}
 function updatePinDisplayStaff(){
@@ -426,7 +426,7 @@ function updatePinDisplayStaff(){
 }
 function checkPinStaff(){
   if(pinDigitsStaff.join('')===PIN_CORRECT_STAFF){document.getElementById('pin-screen-staff').style.display='none';doLogin('staff');}
-  else{document.getElementById('pin-error-staff').style.display='block';setTimeout(()=>{pinDigitsStaff=[];updatePinDisplayStaff();document.getElementById('pin-error-staff').style.display='none';},900);}
+  else{recordLoginError('staff');document.getElementById('pin-error-staff').style.display='block';setTimeout(()=>{pinDigitsStaff=[];updatePinDisplayStaff();document.getElementById('pin-error-staff').style.display='none';},900);}
 }
 
 function showPinCoach(){
@@ -457,7 +457,31 @@ function updatePinDisplayCoach(){
 }
 function checkPinCoach(){
   if(pinDigitsCoach.join('')===PIN_CORRECT_COACH){document.getElementById('pin-screen-coach').style.display='none';doLogin('coach');}
-  else{document.getElementById('pin-error-coach').style.display='block';setTimeout(()=>{pinDigitsCoach=[];updatePinDisplayCoach();document.getElementById('pin-error-coach').style.display='none';},900);}
+  else{recordLoginError('coach');document.getElementById('pin-error-coach').style.display='block';setTimeout(()=>{pinDigitsCoach=[];updatePinDisplayCoach();document.getElementById('pin-error-coach').style.display='none';},900);}
+}
+
+// ── ログインエラー集計（土〜月の週単位でFirestoreに記録）──
+function getWeekendKey(){
+  const now=new Date();
+  const day=now.getDay(); // 0=日,1=月,...,6=土
+  // 直近の土曜日を求める: 土=0日前, 日=1日前, 月=2日前, 火=3日前...金=6日前
+  const daysBack=(day===6)?0:(day+1)%7;
+  const sat=new Date(now);
+  sat.setDate(now.getDate()-daysBack);
+  const satStr=sat.toISOString().split('T')[0];
+  const mon=new Date(sat);
+  mon.setDate(sat.getDate()+2);
+  const monStr=mon.toISOString().split('T')[0];
+  return{key:satStr,weekStart:satStr,weekEnd:monStr};
+}
+function recordLoginError(roleKey){
+  try{
+    const{key,weekStart,weekEnd}=getWeekendKey();
+    db.collection('loginErrors').doc(key).set({
+      weekStart,weekEnd,
+      [roleKey]:firebase.firestore.FieldValue.increment(1)
+    },{merge:true});
+  }catch(e){/* エラー記録失敗は無視 */}
 }
 
 // ── LOGIN ──
