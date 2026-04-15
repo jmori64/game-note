@@ -1597,6 +1597,7 @@ function renderComments(){
       <p style="font-size:11px;color:#bbb;margin:0 0 6px;">未入力の場合、匿名投稿になります</p>
       ${isM
         ? `<select id="comment-author" style="width:100%;margin-bottom:12px;">
+            <option value="">選択してください</option>
             <option value="森C">森C</option>
           </select>`
         : role==='staff'
