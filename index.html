@@ -391,11 +391,11 @@ function showPin(){
   pinDigits=[];updatePinDisplay();
   document.getElementById('pin-screen').style.display='block';
   document.getElementById('pin-error').style.display='none';
-  document.getElementById('btn-manager-role').style.display='none';
+  hideAllRoleBtns();
 }
 function hidePin(){
   document.getElementById('pin-screen').style.display='none';
-  document.getElementById('btn-manager-role').style.display='flex';
+  showAllRoleBtns();
 }
 function pinInput(n){if(pinDigits.length>=3)return;pinDigits.push(n);updatePinDisplay();if(pinDigits.length===3)checkPin();}
 function pinBack(){pinDigits.pop();updatePinDisplay();document.getElementById('pin-error').style.display='none';}
@@ -412,11 +412,11 @@ function showPinStaff(){
   pinDigitsStaff=[];updatePinDisplayStaff();
   document.getElementById('pin-screen-staff').style.display='block';
   document.getElementById('pin-error-staff').style.display='none';
-  document.getElementById('btn-staff-role').style.display='none';
+  hideAllRoleBtns();
 }
 function hidePinStaff(){
   document.getElementById('pin-screen-staff').style.display='none';
-  document.getElementById('btn-staff-role').style.display='flex';
+  showAllRoleBtns();
 }
 function pinInputStaff(n){if(pinDigitsStaff.length>=3)return;pinDigitsStaff.push(n);updatePinDisplayStaff();if(pinDigitsStaff.length===3)checkPinStaff();}
 function pinBackStaff(){pinDigitsStaff.pop();updatePinDisplayStaff();document.getElementById('pin-error-staff').style.display='none';}
@@ -433,11 +433,21 @@ function showPinCoach(){
   pinDigitsCoach=[];updatePinDisplayCoach();
   document.getElementById('pin-screen-coach').style.display='block';
   document.getElementById('pin-error-coach').style.display='none';
-  document.getElementById('btn-coach-role').style.display='none';
+  hideAllRoleBtns();
 }
 function hidePinCoach(){
   document.getElementById('pin-screen-coach').style.display='none';
-  document.getElementById('btn-coach-role').style.display='flex';
+  showAllRoleBtns();
+}
+function hideAllRoleBtns(){
+  ['btn-coach-role','btn-staff-role','btn-manager-role'].forEach(id=>{
+    document.getElementById(id).style.display='none';
+  });
+}
+function showAllRoleBtns(){
+  ['btn-coach-role','btn-staff-role','btn-manager-role'].forEach(id=>{
+    document.getElementById(id).style.display='flex';
+  });
 }
 function pinInputCoach(n){if(pinDigitsCoach.length>=3)return;pinDigitsCoach.push(n);updatePinDisplayCoach();if(pinDigitsCoach.length===3)checkPinCoach();}
 function pinBackCoach(){pinDigitsCoach.pop();updatePinDisplayCoach();document.getElementById('pin-error-coach').style.display='none';}
@@ -1089,9 +1099,7 @@ function backToLogin(){
   document.getElementById('pin-screen').style.display='none';
   document.getElementById('pin-screen-staff').style.display='none';
   document.getElementById('pin-screen-coach').style.display='none';
-  document.getElementById('btn-manager-role').style.display='flex';
-  document.getElementById('btn-staff-role').style.display='flex';
-  document.getElementById('btn-coach-role').style.display='flex';
+  showAllRoleBtns();
   role='';
 }
 
