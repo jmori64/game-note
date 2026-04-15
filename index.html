@@ -366,7 +366,7 @@ const posCoords={'中':[250,50],'左':[100,100],'右':[400,100],'遊':[145,165],
 let role='', currentGameIdx=-1, editPlayerIdx=-1;
 let fieldSelected=null;
 let pinDigits=[];
-const PIN_CORRECT='527';         // データ更新者
+const PIN_CORRECT='0527';        // データ更新者（表示3桁・実態4桁）
 let pinDigitsStaff=[];
 const PIN_CORRECT_STAFF='78963'; // 代表、ベンチコーチ、スコアラー（表示3桁・実態5桁）
 let pinDigitsCoach=[];
@@ -397,7 +397,7 @@ function hidePin(){
   document.getElementById('pin-screen').style.display='none';
   showAllRoleBtns();
 }
-function pinInput(n){if(pinDigits.length>=3)return;pinDigits.push(n);updatePinDisplay();if(pinDigits.length===3)checkPin();}
+function pinInput(n){if(pinDigits.length>=4)return;pinDigits.push(n);updatePinDisplay();if(pinDigits.length===4)checkPin();}
 function pinBack(){pinDigits.pop();updatePinDisplay();document.getElementById('pin-error').style.display='none';}
 function pinClear(){pinDigits=[];updatePinDisplay();document.getElementById('pin-error').style.display='none';}
 function updatePinDisplay(){
