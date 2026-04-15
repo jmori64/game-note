@@ -1936,15 +1936,48 @@ function exportScoreExcel(){
 }
 
 
+// ── 保存制御 ──
+let _saveTimer=null;
+let _savePending=false;
+let _savePendingTimeout=null; // デッドロック防止タイムアウト
+let _pendingRoster=null;
+let _pendingGames=null;
+
+function _releaseSavePending(){
+  _savePending=false;
+  clearTimeout(_savePendingTimeout);
+  _savePendingTimeout=null;
+}
+
 function saveData(){
-  // localStorageにも保存（オフライン時のフォールバック）
+  // 呼び出し時点のデータを深くコピーして固定（onSnapshotによる破壊を防ぐ）
+  _pendingRoster=JSON.parse(JSON.stringify(roster));
+  _pendingGames=JSON.parse(JSON.stringify(games));
+  // デバウンス中もonSnapshotをブロック（800ms窓を守る）
+  _savePending=true;
+  // 30秒でデッドロック強制解除（ネットワーク途絶でフラグが固まるのを防ぐ）
+  clearTimeout(_savePendingTimeout);
+  _savePendingTimeout=setTimeout(()=>{
+    console.warn('saveData: _savePending timeout - 強制解除');
+    _savePending=false;
+    _savePendingTimeout=null;
+  },30000);
+  // localStorageに即時保存（オフライン時のフォールバック）
   try{
-    localStorage.setItem('atoms_roster',JSON.stringify(roster));
-    localStorage.setItem('atoms_games',JSON.stringify(games));
+    localStorage.setItem('atoms_roster',JSON.stringify(_pendingRoster));
+    localStorage.setItem('atoms_games',JSON.stringify(_pendingGames));
   }catch(e){}
-  // Firestoreにトランザクションで保存（バージョンチェック付き）
+  // Firestoreはデバウンス（800ms以内の連続保存をまとめて偽CONFLICT防止）
+  clearTimeout(_saveTimer);
+  _saveTimer=setTimeout(_commitSave,800);
+}
+
+function _commitSave(){
+  const rosterSnap=_pendingRoster;
+  const gamesSnap=_pendingGames;
   const versionAtSave=dataVersion;
   const docRef=db.collection('data').doc('main');
+  _savePending=true;
   db.runTransaction(transaction=>{return transaction.get(docRef).then(doc=>{
       const serverVersion=doc.exists?(doc.data().version||0):0;
       if(serverVersion>versionAtSave){
@@ -1953,26 +1986,26 @@ function saveData(){
         throw err;
       }
       transaction.set(docRef,{
-        roster:roster,
-        games:games,
+        roster:rosterSnap,
+        games:gamesSnap,
         version:serverVersion+1,
         updatedAt:new Date().toISOString()
       });
       return serverVersion+1;
     });
   })
-  .then(newVersion=>{dataVersion=newVersion;})
+  .then(newVersion=>{dataVersion=newVersion;_releaseSavePending();})
   .catch(e=>{
+    _releaseSavePending();
     if(e.isConflict){
       alert('⚠️ 別の端末・タブでデータが更新されています。\n最新データを読み込みます。');
       const first=confirm('自分のデータで上書きしますか？\n（サーバーの最新データが失われます）');
       if(first){
         const second=confirm('本当に上書きしますか？\nこの操作は取り消せません。');
         if(second){
-          // 強制上書き（バージョンチェックをスキップ）
           docRef.set({
-            roster:roster,
-            games:games,
+            roster:rosterSnap,
+            games:gamesSnap,
             version:dataVersion+1,
             updatedAt:new Date().toISOString()
           }).then(()=>{dataVersion=dataVersion+1;})
@@ -1984,6 +2017,15 @@ function saveData(){
     }
   });
 }
+
+// ページを閉じる・リロード時にデバウンス中のデータを即時保存
+window.addEventListener('beforeunload',()=>{
+  if(_saveTimer){
+    clearTimeout(_saveTimer);
+    _saveTimer=null;
+    _commitSave();
+  }
+});
 
 function exportData(){
   const data={roster,games,exportedAt:new Date().toISOString()};
@@ -2004,11 +2046,18 @@ function importData(e){
   reader.onload=function(ev){
     try{
       const data=JSON.parse(ev.target.result);
-      if(data.roster) roster=data.roster;
-      if(data.games) games=data.games;
+      if(!data.roster||!data.games) throw new Error('フォーマット不正');
+      // 復元中はonSnapshotが上書きしないようブロックしてから代入
+      _savePending=true;
+      roster=JSON.parse(JSON.stringify(data.roster));
+      games=JSON.parse(JSON.stringify(data.games));
+      _savePending=false; // ブロック解除してからsaveData
       saveData();renderGames();renderRoster();
       alert('データを復元しました！');
-    }catch(err){alert('ファイルの読み込みに失敗しました');}
+    }catch(err){
+      _savePending=false;
+      alert('ファイルの読み込みに失敗しました');
+    }
     document.getElementById('import-file').value='';
   };
   reader.readAsText(file);
@@ -2023,6 +2072,8 @@ function loadData(){
   }catch(e){}
   // Firestoreからリアルタイム同期（他ブラウザの変更も即反映）
   db.collection('data').doc('main').onSnapshot(docSnap=>{
+    // 保存処理中はonSnapshotによる上書きを禁止（編集中データを守る）
+    if(_savePending) return;
     if(docSnap.exists){
       const data=docSnap.data();
       if(data.roster) roster=data.roster;
@@ -2038,7 +2089,6 @@ function loadData(){
     }
   }, e=>console.error('Firestore読み込みエラー:', e));
 }
-document.addEventListener('DOMContentLoaded',loadData);
 </script>
 </body>
 </html>
