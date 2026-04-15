@@ -65,6 +65,7 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
 </head>
 <body>
 <div class="app">
@@ -362,6 +363,12 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+const analytics = firebase.analytics();
+
+// ── GA4カスタムイベント送信 ──
+function logEvent(name, params){
+  try{ analytics.logEvent(name, params||{}); }catch(e){}
+}
 
 document.addEventListener('DOMContentLoaded', loadData);
 
@@ -493,6 +500,7 @@ function recordLoginError(roleKey){
 // ── LOGIN ──
 function doLogin(r){
   role=r;
+  logEvent('login',{role:r});
   document.getElementById('s-login').style.display='none';
   document.getElementById('s-main').style.display='block';
   const b=document.getElementById('role-badge');
@@ -777,6 +785,8 @@ function autoFillOrder(gameIdx){
 }
 function openGame(idx){
   currentGameIdx=idx;fieldSelected=null;
+  const _g=games[idx];
+  logEvent('game_open',{role,game:`${_g.date} vs ${_g.opp}`});
   // 前のコメントリスナーを解除
   if(commentsUnsubscribe){commentsUnsubscribe();commentsUnsubscribe=null;}
   currentGameComments=[];
@@ -838,6 +848,7 @@ function backToMain(){
   renderGames();
 }
 function switchGameTab(tab,el){
+  logEvent('tab_view',{role,tab});
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   if(el) el.classList.add('active');
   document.getElementById('gt-field').style.display=tab==='field'?'block':'none';
@@ -1668,6 +1679,7 @@ function addComment(){
     postedAt,
     createdAt:firebase.firestore.FieldValue.serverTimestamp()
   }).catch(err=>console.error('コメント保存エラー:',err));
+  logEvent('comment_post',{role,type:_commentType,player:playerName});
   // 送信後：Goodにリセットしてボタン表示を戻す
   _commentType='Good';
   const tg=document.getElementById('type-good');
