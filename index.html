@@ -66,6 +66,7 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 </head>
 <body>
 <div class="app">
@@ -364,6 +365,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const analytics = firebase.analytics();
+firebase.auth().signInAnonymously().catch(()=>{});
 
 // ── GA4カスタムイベント送信 ──
 function logEvent(name, params){
@@ -379,11 +381,11 @@ const posCoords={'中':[250,50],'左':[100,100],'右':[400,100],'遊':[145,165],
 let role='', currentGameIdx=-1, editPlayerIdx=-1;
 let fieldSelected=null;
 let pinDigits=[];
-const PIN_CORRECT='0527';        // データ更新者（表示3桁・実態4桁）
+const HASH_MANAGER='b1b5efd1a6cb804d54dd3d7c418a71e8a4153351b7e54b8ccafb3e6a746d0e69';
 let pinDigitsStaff=[];
-const PIN_CORRECT_STAFF='996633'; // 代表、ベンチコーチ、スコアラー（表示3桁・実態6桁）
+const HASH_STAFF='3378fd1b3e3d336695ad764a3c3675c36cd6474465122e332f8b1ff53b493dd1';
 let pinDigitsCoach=[];
-const PIN_CORRECT_COACH='555';   // チーム関係者
+const HASH_COACH='91a73fd806ab2c005c13b4dc19130a884e909dea3f72d46e30266fe1a1f588d8';
 let numpadTarget={pitcherIdx:null,row:null,inning:null};
 let numpadVal='';
 const PITCHER_ROWS=['球数','投球回','与四球','死球','奪三振','被安打','自責点','ゴロ','ゴロ安打','全打球'];
@@ -397,6 +399,12 @@ let commentsUnsubscribe=null; // onSnapshotリスナー解除用
 
 function generateId(){
   return Date.now().toString(36)+Math.random().toString(36).substr(2,9);
+}
+
+// ── SHA-256 ──
+async function sha256(str){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
 // ── PIN ──
@@ -416,8 +424,9 @@ function pinClear(){pinDigits=[];updatePinDisplay();document.getElementById('pin
 function updatePinDisplay(){
   ['pin-d1','pin-d2','pin-d3'].forEach((id,i)=>{document.getElementById(id).textContent=pinDigits[i]!==undefined?'●':'-';});
 }
-function checkPin(){
-  if(pinDigits.join('')===PIN_CORRECT){document.getElementById('pin-screen').style.display='none';doLogin('manager');}
+async function checkPin(){
+  const h=await sha256(pinDigits.join(''));
+  if(h===HASH_MANAGER){document.getElementById('pin-screen').style.display='none';doLogin('manager');}
   else{recordLoginError('manager');document.getElementById('pin-error').style.display='block';setTimeout(()=>{pinDigits=[];updatePinDisplay();document.getElementById('pin-error').style.display='none';},900);}
 }
 
@@ -437,8 +446,9 @@ function pinClearStaff(){pinDigitsStaff=[];updatePinDisplayStaff();document.getE
 function updatePinDisplayStaff(){
   ['pin-s1','pin-s2','pin-s3'].forEach((id,i)=>{document.getElementById(id).textContent=pinDigitsStaff[i]!==undefined?'●':'-';});
 }
-function checkPinStaff(){
-  if(pinDigitsStaff.join('')===PIN_CORRECT_STAFF){document.getElementById('pin-screen-staff').style.display='none';doLogin('staff');}
+async function checkPinStaff(){
+  const h=await sha256(pinDigitsStaff.join(''));
+  if(h===HASH_STAFF){document.getElementById('pin-screen-staff').style.display='none';doLogin('staff');}
   else{recordLoginError('staff');document.getElementById('pin-error-staff').style.display='block';setTimeout(()=>{pinDigitsStaff=[];updatePinDisplayStaff();document.getElementById('pin-error-staff').style.display='none';},900);}
 }
 
@@ -468,8 +478,9 @@ function pinClearCoach(){pinDigitsCoach=[];updatePinDisplayCoach();document.getE
 function updatePinDisplayCoach(){
   ['pin-c1','pin-c2','pin-c3'].forEach((id,i)=>{document.getElementById(id).textContent=pinDigitsCoach[i]!==undefined?'●':'-';});
 }
-function checkPinCoach(){
-  if(pinDigitsCoach.join('')===PIN_CORRECT_COACH){document.getElementById('pin-screen-coach').style.display='none';doLogin('coach');}
+async function checkPinCoach(){
+  const h=await sha256(pinDigitsCoach.join(''));
+  if(h===HASH_COACH){document.getElementById('pin-screen-coach').style.display='none';doLogin('coach');}
   else{recordLoginError('coach');document.getElementById('pin-error-coach').style.display='block';setTimeout(()=>{pinDigitsCoach=[];updatePinDisplayCoach();document.getElementById('pin-error-coach').style.display='none';},900);}
 }
 
@@ -511,11 +522,11 @@ function doLogin(r){
   document.getElementById('div-game-add').style.display=role==='manager'?'block':'none';
   document.getElementById('btn-export').style.display=role==='manager'?'':'none';
   document.getElementById('btn-import-label').style.display=role==='manager'?'':'none';
-  document.getElementById('btn-excel').style.display=(role==='manager'||role==='staff')?'':'none';
+  document.getElementById('btn-excel').style.display=role==='manager'?'':'none';
   document.getElementById('div-roster-add').style.display=role==='manager'?'block':'none';
   document.getElementById('div-roster-notice').style.display=role==='coach'?'block':'none';
   // 選手登録タブ：manager・staff は表示、coach は非表示
-  document.getElementById('nav-roster-btn').style.display=(role==='manager'||role==='staff')?'':'none';
+  document.getElementById('nav-roster-btn').style.display=role==='manager'?'':'none';
   renderGames();renderRoster();
   if(role==='coach'){
     document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));
