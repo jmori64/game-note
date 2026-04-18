@@ -483,8 +483,8 @@ function updatePinDisplayCoach(){
 }
 async function checkPinCoach(){
   const h=await sha256(pinDigitsCoach.join(''));
-  if(h===HASH_COACH){document.getElementById('pin-screen-coach').style.display='none';doLogin('coach');}
-  else{recordLoginError('coach');document.getElementById('pin-error-coach').style.display='block';setTimeout(()=>{pinDigitsCoach=[];updatePinDisplayCoach();document.getElementById('pin-error-coach').style.display='none';},900);}
+  if(h===HASH_COACH){document.getElementById('pin-screen-coach').style.display='none';doLogin('member');}
+  else{recordLoginError('member');document.getElementById('pin-error-coach').style.display='block';setTimeout(()=>{pinDigitsCoach=[];updatePinDisplayCoach();document.getElementById('pin-error-coach').style.display='none';},900);}
 }
 
 // ── ログインエラー集計（土〜月の週単位でFirestoreに記録）──
@@ -527,11 +527,11 @@ function doLogin(r){
   document.getElementById('btn-import-label').style.display=role==='manager'?'':'none';
   document.getElementById('btn-excel').style.display=role==='manager'?'':'none';
   document.getElementById('div-roster-add').style.display=role==='manager'?'block':'none';
-  document.getElementById('div-roster-notice').style.display=role==='coach'?'block':'none';
+  document.getElementById('div-roster-notice').style.display=role==='member'?'block':'none';
   // 選手登録タブ：manager・staff は表示、coach は非表示
   document.getElementById('nav-roster-btn').style.display=role==='manager'?'':'none';
   renderGames();renderRoster();
-  if(role==='coach'){
+  if(role==='member'){
     document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));
     const gamesBtn=document.querySelector('.nav button');
     if(gamesBtn) gamesBtn.classList.add('active');
@@ -843,7 +843,7 @@ function openGame(idx){
   const commentTab=document.getElementById('tab-comment-btn');
   if(commentTab) commentTab.style.display='';
   // staffはcoachと同様に閲覧モード表示
-  document.getElementById('div-order-notice').style.display=(role==='coach'||role==='staff')?'block':'none';
+  document.getElementById('div-order-notice').style.display=(role==='member'||role==='staff')?'block':'none';
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',i===0));
   document.getElementById('gt-field').style.display='block';
   document.getElementById('gt-order').style.display='none';
@@ -1182,7 +1182,7 @@ function renderPitcherTable(){
   });
   let html='';
   if(role==='manager') html+=`<button class="sbtn" onclick="openPitcherModal()" style="margin-bottom:12px;">＋ 投手を追加</button>`;
-  if(role==='coach') html+='<p style="font-size:12px;color:#888;margin-bottom:8px;">球数のみ表示</p>';
+  if(role==='member') html+='<p style="font-size:12px;color:#888;margin-bottom:8px;">球数のみ表示</p>';
   if(g.pitchers.length===0){html+='<p class="notice">投手記録がありません</p>';wrap.innerHTML=html;return;}
   const mkRow=(num,name,val,target,ok)=>{
     const b=val!=='-'?(ok?'<span style="color:#2e7d32;font-weight:700;font-size:14px;">✓</span>':'<span style="color:#c62828;font-weight:700;font-size:14px;">✗</span>'):'';
@@ -1276,7 +1276,7 @@ function renderPitcherTable(){
     const tdGS='padding:3px 5px;background:#fffdf0;border:0.5px solid #ddd;text-align:center;font-size:10px;';
     const tdCS='padding:3px 5px;background:#f0f7ff;border:0.5px solid #ddd;text-align:center;font-size:10px;';
     let a1rows='';
-    (role==='coach'?mRows.filter(m=>m.k==='pip'):mRows).forEach(m=>{
+    (role==='member'?mRows.filter(m=>m.k==='pip'):mRows).forEach(m=>{
       a1rows+='<tr><td style="'+tdLS+'">'+m.l+'</td>';
       INNINGS.forEach(i=>{a1rows+='<td style="'+tdGS+'">'+calcM(pastByInn[i])[m.k]+'</td>';});
       a1rows+='<td style="'+tdGS+'font-weight:700;">'+calcM(pastTot)[m.k]+'</td>';
@@ -1324,15 +1324,15 @@ function renderPitcherTable(){
       </div>
       ${area1Html}
       ${area2Html}
-      ${role==='coach'?'':'<div style="font-weight:600;font-size:12px;color:#333;margin-bottom:4px;">③ 基礎数値</div>'}
-      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;${role==='coach'?'display:none;':''}">
+      ${role==='member'?'':'<div style="font-weight:600;font-size:12px;color:#333;margin-bottom:4px;">③ 基礎数値</div>'}
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;${role==='member'?'display:none;':''}">
       <table style="border-collapse:collapse;font-size:12px;min-width:100%;border:0.5px solid #ddd;">
         <thead><tr>
           <th style="padding:5px 6px;background:#f5f5f5;border:0.5px solid #ddd;text-align:left;min-width:52px;position:sticky;left:0;">項目</th>
           ${INNINGS.map(i=>`<th style="padding:5px 8px;background:#f5f5f5;border:0.5px solid #ddd;text-align:center;min-width:36px;">${i===7?'サドン':i+'回'}</th>`).join('')}
           <th style="padding:5px 8px;background:#eaf3de;border:0.5px solid #ddd;text-align:center;min-width:36px;font-weight:500;">計</th>
         </tr></thead>
-        <tbody>${(role==='manager'?PITCHER_ROWS:['球数']).map(row=>{
+        <tbody>${(role==='member'?['球数']:PITCHER_ROWS).map(row=>{
           const isIP=row==='投球回';
           return `<tr>
             <td style="padding:5px 6px;background:#f5f5f5;border:0.5px solid #ddd;font-weight:500;color:#555;position:sticky;left:0;">${row}</td>
@@ -1602,7 +1602,7 @@ function renderComments(){
   const canSeeAll=role==='manager'||role==='staff'; // Improveコメントも閲覧可
   let html='';
 
-  if(isManager||role==='staff'||role==='coach'){
+  if(isManager||role==='staff'||role==='member'){
     const isM=isManager;
     // デフォルトでGoodを選択済みにする
     if(_commentType==='') _commentType='Good';
@@ -1680,7 +1680,7 @@ function addComment(){
   const pidx=document.getElementById('comment-player').value;
   const author=document.getElementById('comment-author').value;
   const text=document.getElementById('comment-text').value.trim();
-  if(!_commentType){if(role==='coach'){_commentType='Good';}else{alert('Good/Improveを選んでください');return;}}
+  if(!_commentType){if(role==='member'){_commentType='Good';}else{alert('Good/Improveを選んでください');return;}}
   if(role==='manager'&&!author){alert('コメントする人を選んでください');return;}
   if(!text){alert('コメントを入力してください');return;}
   const playerName=pidx?roster[parseInt(pidx)].name:'チーム全体';
