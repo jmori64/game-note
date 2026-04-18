@@ -352,7 +352,29 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-// Firebase 初期化
+// ── 変数宣言（Firebase初期化より前に置くことでSDK読み込み失敗時のTDZを防ぐ） ──
+const POS_ORDER=['投','捕','一','二','三','遊','左','中','右'];
+const POS_OPTIONS=['投','捕','一','二','三','遊','左','中','右','DH'];
+const posCoords={'中':[250,50],'左':[100,100],'右':[400,100],'遊':[145,165],'二':[355,165],'投':[250,210],'三':[100,248],'一':[400,248],'捕':[250,305],'DH':null};
+let role='', currentGameIdx=-1, currentGameId=null, editPlayerIdx=-1;
+let fieldSelected=null;
+let pinDigits=[];
+const HASH_MANAGER='b1b5efd1a6cb804d54dd3d7c418a71e8a4153351b7e54b8ccafb3e6a746d0e69';
+let pinDigitsStaff=[];
+const HASH_STAFF='3378fd1b3e3d336695ad764a3c3675c36cd6474465122e332f8b1ff53b493dd1';
+let pinDigitsCoach=[];
+const HASH_COACH='91a73fd806ab2c005c13b4dc19130a884e909dea3f72d46e30266fe1a1f588d8';
+let numpadTarget={pitcherName:null,row:null,inning:null};
+let numpadVal='';
+const PITCHER_ROWS=['球数','投球回','与四球','死球','奪三振','被安打','自責点','ゴロ','ゴロ安打','全打球'];
+const INNINGS=[1,2,3,4,5,6,7];
+let roster=[];
+let games=[];
+let dataVersion=0;
+let currentGameComments=[];
+let commentsUnsubscribe=null;
+
+// Firebase 初期化（SDKが読み込まれていない場合も安全に処理する）
 const firebaseConfig = {
   apiKey: "AIzaSyCGrzpdj1bw5hMHk2BUPU-saYuvOeBBIIo",
   authDomain: "game-note-ccd33.firebaseapp.com",
@@ -362,10 +384,34 @@ const firebaseConfig = {
   appId: "1:327296540210:web:25c2a009055ea66231662b",
   measurementId: "G-HH6C9DCR59"
 };
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const analytics = firebase.analytics();
-firebase.auth().signInAnonymously().catch(()=>{});
+let db=null, analytics=null;
+try{
+  firebase.initializeApp(firebaseConfig);
+  db=firebase.firestore();
+  analytics=firebase.analytics();
+  firebase.auth().signInAnonymously().catch(()=>{});
+  // Auth切れ時に自動で匿名ログインし直す（長時間利用・スリープ復帰対策）
+  firebase.auth().onAuthStateChanged(user=>{
+    if(!user) firebase.auth().signInAnonymously().catch(()=>{});
+  });
+}catch(e){ console.warn('Firebase初期化失敗:',e); }
+
+// ── オフライン通知バナー（グラウンドでの電波不安定対策） ──
+function _showOfflineBanner(){
+  if(document.getElementById('offline-banner')) return;
+  const b=document.createElement('div');
+  b.id='offline-banner';
+  b.style.cssText='position:fixed;top:0;left:0;right:0;background:#a32d2d;color:#fff;padding:10px 16px;text-align:center;font-size:13px;z-index:9999;';
+  b.textContent='📡 オフラインです。入力内容はローカルに保持されます。接続が回復すると自動で同期します。';
+  document.body.prepend(b);
+}
+function _hideOfflineBanner(){
+  const b=document.getElementById('offline-banner');
+  if(b) b.remove();
+}
+window.addEventListener('offline',_showOfflineBanner);
+window.addEventListener('online',_hideOfflineBanner);
+if(!navigator.onLine) _showOfflineBanner();
 
 // ── GA4カスタムイベント送信 ──
 function logEvent(name, params){
@@ -374,31 +420,13 @@ function logEvent(name, params){
 
 document.addEventListener('DOMContentLoaded', loadData);
 
-const POS_ORDER=['投','捕','一','二','三','遊','左','中','右'];
-const POS_OPTIONS=['投','捕','一','二','三','遊','左','中','右','DH'];
-const posCoords={'中':[250,50],'左':[100,100],'右':[400,100],'遊':[145,165],'二':[355,165],'投':[250,210],'三':[100,248],'一':[400,248],'捕':[250,305],'DH':null};
-
-let role='', currentGameIdx=-1, editPlayerIdx=-1;
-let fieldSelected=null;
-let pinDigits=[];
-const HASH_MANAGER='b1b5efd1a6cb804d54dd3d7c418a71e8a4153351b7e54b8ccafb3e6a746d0e69';
-let pinDigitsStaff=[];
-const HASH_STAFF='3378fd1b3e3d336695ad764a3c3675c36cd6474465122e332f8b1ff53b493dd1';
-let pinDigitsCoach=[];
-const HASH_COACH='91a73fd806ab2c005c13b4dc19130a884e909dea3f72d46e30266fe1a1f588d8';
-let numpadTarget={pitcherIdx:null,row:null,inning:null};
-let numpadVal='';
-const PITCHER_ROWS=['球数','投球回','与四球','死球','奪三振','被安打','自責点','ゴロ','ゴロ安打','全打球'];
-const INNINGS=[1,2,3,4,5,6,7];
-
-let roster=[];
-let games=[];
-let dataVersion=0; // 楽観的ロック用バージョン番号
-let currentGameComments=[]; // コメントのローカルキャッシュ（別コレクション）
-let commentsUnsubscribe=null; // onSnapshotリスナー解除用
-
 function generateId(){
   return Date.now().toString(36)+Math.random().toString(36).substr(2,9);
+}
+// XSS対策：ユーザー入力をHTMLに埋め込む前に必ずエスケープ
+function esc(str){
+  if(str==null) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 // ── SHA-256 ──
@@ -624,7 +652,19 @@ function renderGames(){
 function deleteGame(idx){
   const g=games[idx];
   confirmDelete('試合を削除',`vs ${g.opp}（${g.date}）を削除しますか？`,()=>{
-    games.splice(idx,1);renderGames();saveData();
+    const deletedId=g.gameId||null;
+    games.splice(idx,1);
+    // 削除後にcurrentGameIdxをgameIdで再計算（インデックスずれ防止）
+    if(currentGameId){
+      if(currentGameId===deletedId){
+        // 開いていた試合自体が削除された
+        currentGameIdx=-1;currentGameId=null;
+      } else {
+        const newIdx=games.findIndex(x=>x.gameId===currentGameId);
+        if(newIdx!==-1) currentGameIdx=newIdx;
+      }
+    }
+    renderGames();saveData();
   });
 }
 function openGameModal(){
@@ -795,7 +835,9 @@ function autoFillOrder(gameIdx){
   g.order=starters.slice(0,9);
 }
 function openGame(idx){
-  currentGameIdx=idx;fieldSelected=null;
+  currentGameIdx=idx;
+  currentGameId=games[idx]?games[idx].gameId||null:null; // gameIdを正として記録
+  fieldSelected=null;
   const _g=games[idx];
   logEvent('game_open',{role,game:`${_g.date} vs ${_g.opp}`});
   // 前のコメントリスナーを解除
@@ -805,6 +847,7 @@ function openGame(idx){
   const g0=games[idx];
   if(!g0.gameId){g0.gameId=generateId();saveData();}
   // コメントをリアルタイム購読（30人同時でも競合しない）
+  if(!db) return; // Firebase未初期化時はスキップ
   commentsUnsubscribe=db.collection('comments')
     .where('gameId','==',g0.gameId)
     .onSnapshot(snap=>{
@@ -1317,7 +1360,7 @@ function renderPitcherTable(){
     html+=`<div style="margin-bottom:1.5rem;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
         <p style="font-size:14px;font-weight:500;color:#1a1a1a;">${pt.num?pt.num+'. ':''}${pt.name}</p>
-        ${role==='manager'?`<button class="sbtn sbtn-danger" onclick="deletePitcher(${pi})">削除</button>`:''}
+        ${role==='manager'?`<button class="sbtn sbtn-danger" onclick="deletePitcher('${esc(pt.name)}')">削除</button>`:''}
       </div>
       ${area1Html}
       ${area2Html}
@@ -1357,13 +1400,17 @@ function renderPitcherTable(){
   wrap.innerHTML=html;
 }
 function openIPPicker(pi, inn){
+  // pitcherIdxではなく投手名で記録（onSnapshot後に配列が置き換わってもずれない）
+  const pitcherSnap=games[currentGameIdx].pitchers[pi];
+  if(!pitcherSnap) return;
+  const pitcherName=pitcherSnap.name;
   const ov=document.createElement('div');
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:300;';
   const box=document.createElement('div');
   box.style.cssText='background:#fff;border-radius:16px;padding:1.5rem;width:280px;max-width:90%;';
   const inn_labels=['1回','2回','3回','4回','5回','6回','サドン'];
   const inn_label=inn_labels[inn-1]||inn+'回';
-  const cur=games[currentGameIdx].pitchers[pi].data['投球回']?.[inn];
+  const cur=pitcherSnap.data['投球回']?.[inn];
   const opts=[{val:0,label:'0'},{val:0.33,label:'1/3'},{val:0.67,label:'2/3'},{val:1,label:'1'}];
 
   const title=document.createElement('p');
@@ -1381,8 +1428,12 @@ function openIPPicker(pi, inn){
     btn.style.cssText='padding:14px;border:0.5px solid #ccc;border-radius:10px;font-size:18px;cursor:pointer;font-weight:500;background:'+(isSelected?'#185fa5':'#fff')+';color:'+(isSelected?'#fff':'#1a1a1a')+';';
     btn.textContent=opt.label;
     btn.addEventListener('click',()=>{
-      if(opt.val===0) delete games[currentGameIdx].pitchers[pi].data['投球回'][inn];
-      else games[currentGameIdx].pitchers[pi].data['投球回'][inn]=opt.val;
+      // 選択時も名前でfind（インデックスずれ防止）
+      const g=games[currentGameIdx];
+      const pitcher=g.pitchers.find(p=>p.name===pitcherName);
+      if(!pitcher){ov.remove();return;}
+      if(opt.val===0) delete pitcher.data['投球回'][inn];
+      else pitcher.data['投球回'][inn]=opt.val;
       saveData();renderPitcherTable();ov.remove();
     });
     grid.appendChild(btn);
@@ -1400,9 +1451,12 @@ function openIPPicker(pi, inn){
 }
 
 function openNumpad(pitcherIdx,row,inning){
-  numpadTarget={pitcherIdx,row,inning};
-  numpadVal=String(games[currentGameIdx].pitchers[pitcherIdx].data[row][inning]||'');
-  document.getElementById('numpad-title').textContent=`${games[currentGameIdx].pitchers[pitcherIdx].name} ${inning}回 ${row}`;
+  // pitcherIdxではなく投手名で記録（onSnapshot後に配列が置き換わってもずれない）
+  const pitcher=games[currentGameIdx].pitchers[pitcherIdx];
+  if(!pitcher) return;
+  numpadTarget={pitcherName:pitcher.name,row,inning};
+  numpadVal=String(pitcher.data[row]?.[inning]||'');
+  document.getElementById('numpad-title').textContent=`${pitcher.name} ${inning}回 ${row}`;
   updateNumpadDisplay();openModal('mo-numpad');
 }
 function numpadInput(n){if(numpadVal.length>=3)return;numpadVal+=String(n);updateNumpadDisplay();}
@@ -1419,13 +1473,21 @@ function numpadConfirm(){
     closeModal('mo-numpad');renderScore();saveData();
     return;
   }
-  const{pitcherIdx,row,inning}=numpadTarget;
-  games[currentGameIdx].pitchers[pitcherIdx].data[row][inning]=numpadVal===''?undefined:parseInt(numpadVal);
+  const{pitcherName,row,inning}=numpadTarget;
+  const g=games[currentGameIdx];
+  const pitcher=g.pitchers.find(p=>p.name===pitcherName);
+  if(!pitcher){console.error('投手が見つかりません:',pitcherName);closeModal('mo-numpad');return;}
+  if(!pitcher.data[row]) pitcher.data[row]={};
+  pitcher.data[row][inning]=numpadVal===''?undefined:parseInt(numpadVal);
   closeModal('mo-numpad');renderPitcherTable();saveData();
 }
-function deletePitcher(idx){
+function deletePitcher(pitcherName){
+  // インデックスではなく名前で検索・削除（配列置換後のずれを防ぐ）
   confirmDelete('投手記録を削除','この投手記録を削除しますか？',()=>{
-    games[currentGameIdx].pitchers.splice(idx,1);renderPitcherTable();saveData();
+    const g=games[currentGameIdx];
+    const idx=g.pitchers.findIndex(p=>p.name===pitcherName);
+    if(idx===-1){console.error('削除対象の投手が見つかりません:',pitcherName);return;}
+    g.pitchers.splice(idx,1);renderPitcherTable();saveData();
   });
 }
 function renderScore(){
@@ -1650,14 +1712,14 @@ function renderComments(){
       <div class="card" style="margin-bottom:.75rem;padding:.875rem 1rem;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <div>
-            <span style="font-size:13px;font-weight:500;color:#185fa5;">${c.playerName}</span>
+            <span style="font-size:13px;font-weight:500;color:#185fa5;">${esc(c.playerName)}</span>
             ${c.type?`<span style="font-size:11px;font-weight:500;padding:2px 6px;border-radius:4px;margin-left:6px;background:${c.type==='Good'?'#dcfce7':'#dbeafe'};color:${c.type==='Good'?'#166534':'#1e40af'};">${c.type==='Good'?'👍 Good':'📈 Improve'}</span>`:''}
-            ${c.author?`<span style="font-size:12px;color:#888;margin-left:6px;">from ${c.author}</span>`:''}
-            ${c.postedAt?`<span style="font-size:11px;color:#bbb;margin-left:6px;">${c.postedAt}</span>`:''}
+            ${c.author?`<span style="font-size:12px;color:#888;margin-left:6px;">from ${esc(c.author)}</span>`:''}
+            ${c.postedAt?`<span style="font-size:11px;color:#bbb;margin-left:6px;">${esc(c.postedAt)}</span>`:''}
           </div>
-          ${isManager?`<div style="display:flex;gap:4px;"><button class="sbtn" onclick="editComment('${c.id}')">編集</button><button class="sbtn sbtn-danger" onclick="deleteComment('${c.id}')">削除</button></div>`:''}
+          ${isManager?`<div style="display:flex;gap:4px;"><button class="sbtn" onclick="editComment('${esc(c.id)}')">編集</button><button class="sbtn sbtn-danger" onclick="deleteComment('${esc(c.id)}')">削除</button></div>`:''}
         </div>
-        <p style="font-size:14px;color:#1a1a1a;line-height:1.6;white-space:pre-wrap;">${c.text}</p>
+        <p style="font-size:14px;color:#1a1a1a;line-height:1.6;white-space:pre-wrap;">${esc(c.text)}</p>
       </div>`).join('');
   }
 
@@ -1684,7 +1746,11 @@ function addComment(){
   const playerNum=pidx?roster[parseInt(pidx)].num:'';
   const authorName=author||'匿名';
   const postedAt=new Date().toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  // 送信中：ボタンを一時無効化（二重送信・silent failure防止）
+  const submitBtn=document.querySelector('button[onclick="addComment()"]');
+  if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='送信中...';}
   // Firestoreの独立したドキュメントに保存（競合なし・30人同時可）
+  if(!db){if(submitBtn){submitBtn.disabled=false;submitBtn.textContent='送信';}alert('オフラインのためコメントを送信できません');return;}
   db.collection('comments').add({
     gameId:g.gameId,
     gameDate:g.date,
@@ -1695,16 +1761,21 @@ function addComment(){
     text,
     postedAt,
     createdAt:firebase.firestore.FieldValue.serverTimestamp()
-  }).catch(err=>console.error('コメント保存エラー:',err));
-  logEvent('comment_post',{role,type:_commentType,player:playerName});
-  // 送信後：Goodにリセットしてボタン表示を戻す
-  _commentType='Good';
-  const tg=document.getElementById('type-good');
-  const ti=document.getElementById('type-improve');
-  if(tg) tg.style.cssText='flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;font-size:14px;cursor:pointer;background:#dcfce7;color:#166534;font-weight:500;';
-  if(ti) ti.style.cssText='flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;font-size:14px;cursor:pointer;background:#fff;color:#1a1a1a;';
-  // UIはonSnapshotが自動更新するため手動renderComments()不要
-  document.getElementById('comment-text').value='';
+  }).then(()=>{
+    logEvent('comment_post',{role,type:_commentType,player:playerName});
+    // 送信成功：フォームをリセット
+    _commentType='Good';
+    const tg=document.getElementById('type-good');
+    const ti=document.getElementById('type-improve');
+    if(tg) tg.style.cssText='flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;font-size:14px;cursor:pointer;background:#dcfce7;color:#166534;font-weight:500;';
+    if(ti) ti.style.cssText='flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;font-size:14px;cursor:pointer;background:#fff;color:#1a1a1a;';
+    document.getElementById('comment-text').value='';
+    if(submitBtn){submitBtn.disabled=false;submitBtn.textContent='送信';}
+  }).catch(err=>{
+    console.error('コメント保存エラー:',err);
+    alert('⚠️ コメントの送信に失敗しました。\nネットワーク状態を確認して再送信してください。');
+    if(submitBtn){submitBtn.disabled=false;submitBtn.textContent='送信';}
+  });
 }
 
 function editComment(commentId){
@@ -1756,6 +1827,7 @@ function editComment(commentId){
     if(!type){alert('Good/Improveを選んでください');return;}
     if(!author){alert('コメントする人を選んでください');return;}
     if(!text){alert('コメントを入力してください');return;}
+    if(!db){alert('Firebase未接続のため編集できません');return;}
     db.collection('comments').doc(commentId).update({author,type,text})
       .catch(err=>console.error('コメント編集エラー:',err));
     ov.remove();
@@ -1764,6 +1836,7 @@ function editComment(commentId){
 
 function deleteComment(commentId){
   confirmDelete('コメントを削除','このコメントを削除しますか？',()=>{
+    if(!db){alert('Firebase未接続のため削除できません');return;}
     db.collection('comments').doc(commentId).delete()
       .catch(err=>console.error('コメント削除エラー:',err));
   });
@@ -1782,6 +1855,7 @@ function showPlayerComments(playerName){
   ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
   ov.querySelector('button').addEventListener('click',()=>ov.remove());
   document.body.appendChild(ov);
+  if(!db){ov.querySelector('div p:nth-child(2)').textContent='Firebase未接続のため取得できません';return;}
   db.collection('comments').where('playerName','==',playerName).get().then(snap=>{
     const inner_div=ov.querySelector('div');
     if(!inner_div) return;
@@ -1791,8 +1865,8 @@ function showPlayerComments(playerName){
     } else {
       inner=snap.docs.map(d=>{const c=d.data();return`
         <div style="margin-bottom:10px;padding:10px 12px;background:#f5f5f5;border-radius:8px;border-left:3px solid #185fa5;">
-          <p style="font-size:12px;color:#185fa5;font-weight:500;margin-bottom:4px;">${c.gameDate||''} vs ${c.gameOpp||''}</p>
-          <p style="font-size:14px;color:#1a1a1a;line-height:1.6;white-space:pre-wrap;">${c.text}</p>
+          <p style="font-size:12px;color:#185fa5;font-weight:500;margin-bottom:4px;">${esc(c.gameDate||'')} vs ${esc(c.gameOpp||'')}</p>
+          <p style="font-size:14px;color:#1a1a1a;line-height:1.6;white-space:pre-wrap;">${esc(c.text)}</p>
         </div>`;}).join('');
     }
     inner_div.innerHTML=`
@@ -1904,6 +1978,7 @@ function exportPitcherExcel(){
 
 function exportCommentExcel(){
   // Firestoreから全コメントを取得してExcelに出力
+  if(!db){alert('Firebase未接続のため出力できません');return;}
   db.collection('comments').get().then(snap=>{
     if(snap.empty){alert('コメントがありません');return;}
     const wb=XLSX.utils.book_new();
@@ -1973,6 +2048,7 @@ function saveData(){
 }
 
 function _commitSave(){
+  if(!db){console.warn('Firebase未初期化のため保存スキップ');return;} // Firebase未初期化時はスキップ
   const rosterSnap=_pendingRoster;
   const gamesSnap=_pendingGames;
   const versionAtSave=dataVersion;
@@ -2071,6 +2147,7 @@ function loadData(){
     if(g) games=JSON.parse(g);
   }catch(e){}
   // Firestoreからリアルタイム同期（他ブラウザの変更も即反映）
+  if(!db) return; // Firebase未初期化時はスキップ（localStorageのみで動作）
   db.collection('data').doc('main').onSnapshot(docSnap=>{
     // 保存処理中はonSnapshotによる上書きを禁止（編集中データを守る）
     if(_savePending) return;
@@ -2079,6 +2156,18 @@ function loadData(){
       if(data.roster) roster=data.roster;
       if(data.games) games=data.games;
       dataVersion=data.version||0; // バージョンを常に最新に保つ
+      // ★核心修正：games配列が置き換わった後、currentGameIdxをgameIdで再計算
+      // インデックス参照のまま放置すると「杉一」のような中間試合が別試合に化ける
+      if(currentGameId){
+        const recalcIdx=games.findIndex(g=>g.gameId===currentGameId);
+        if(recalcIdx!==-1){
+          currentGameIdx=recalcIdx; // 正しい位置に更新
+        } else {
+          // 試合が他端末から削除された場合は安全にリセット
+          currentGameIdx=-1;
+          currentGameId=null;
+        }
+      }
       // localStorageも最新化
       try{
         localStorage.setItem('atoms_roster',JSON.stringify(roster));
