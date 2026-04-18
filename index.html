@@ -975,37 +975,40 @@ function renderField(){
     const rightW=Math.max(playerName.length*13+jerseyNum.length*10+16, 80);
     const bw=leftW+rightW, bh=28, bx=c[0]-bw/2, by=c[1]-bh/2;
     const isSelected=fieldSelected===i;
+    const isBenchTarget=fieldBenchSelected!==null; // ベンチ先選択中 → フィールド選手はターゲット
+    const fillColor=isSelected?'#185fa5':(isBenchTarget?'#166534':'#fff');
     const grp=document.createElementNS('http://www.w3.org/2000/svg','g');
     grp.style.cursor=role==='manager'?'pointer':'default';
     const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');
     bg.setAttribute('x',bx);bg.setAttribute('y',by);bg.setAttribute('width',bw);bg.setAttribute('height',bh);
-    bg.setAttribute('rx','7');bg.setAttribute('fill',isSelected?'#185fa5':'#fff');bg.setAttribute('opacity','0.95');
+    bg.setAttribute('rx','7');bg.setAttribute('fill',fillColor);bg.setAttribute('opacity','0.95');
     if(isSelected){bg.setAttribute('stroke','#0c447c');bg.setAttribute('stroke-width','2');}
+    else if(isBenchTarget){bg.setAttribute('stroke','#14532d');bg.setAttribute('stroke-width','2');}
     grp.appendChild(bg);
     const leftBg=document.createElementNS('http://www.w3.org/2000/svg','rect');
     leftBg.setAttribute('x',bx);leftBg.setAttribute('y',by);leftBg.setAttribute('width',leftW);leftBg.setAttribute('height',bh);
-    leftBg.setAttribute('rx','7');leftBg.setAttribute('fill',isSelected?'rgba(255,255,255,0.2)':'#dbeafe');
+    leftBg.setAttribute('rx','7');leftBg.setAttribute('fill',(isSelected||isBenchTarget)?'rgba(255,255,255,0.2)':'#dbeafe');
     grp.appendChild(leftBg);
     const leftBg2=document.createElementNS('http://www.w3.org/2000/svg','rect');
     leftBg2.setAttribute('x',bx+leftW-6);leftBg2.setAttribute('y',by);leftBg2.setAttribute('width','6');leftBg2.setAttribute('height',bh);
-    leftBg2.setAttribute('fill',isSelected?'rgba(255,255,255,0.2)':'#dbeafe');
+    leftBg2.setAttribute('fill',(isSelected||isBenchTarget)?'rgba(255,255,255,0.2)':'#dbeafe');
     grp.appendChild(leftBg2);
     const tNum=document.createElementNS('http://www.w3.org/2000/svg','text');
     tNum.setAttribute('x',bx+leftW/2);tNum.setAttribute('y',c[1]+7);
     tNum.setAttribute('text-anchor','middle');tNum.setAttribute('font-size','18');
-    tNum.setAttribute('fill',isSelected?'#fff':'#1d4ed8');tNum.setAttribute('font-weight','700');
+    tNum.setAttribute('fill',(isSelected||isBenchTarget)?'#fff':'#1d4ed8');tNum.setAttribute('font-weight','700');
     tNum.textContent=numLabel;
     grp.appendChild(tNum);
     const t1=document.createElementNS('http://www.w3.org/2000/svg','text');
     t1.setAttribute('x',bx+leftW+4);t1.setAttribute('y',c[1]+6);
     t1.setAttribute('text-anchor','start');t1.setAttribute('font-size','14');
-    t1.setAttribute('fill',isSelected?'#fff':'#1a1a1a');t1.setAttribute('font-weight','500');
+    t1.setAttribute('fill',(isSelected||isBenchTarget)?'#fff':'#1a1a1a');t1.setAttribute('font-weight','500');
     t1.textContent=playerName;
     grp.appendChild(t1);
     const t2=document.createElementNS('http://www.w3.org/2000/svg','text');
     t2.setAttribute('x',bx+bw-4);t2.setAttribute('y',c[1]+6);
     t2.setAttribute('text-anchor','end');t2.setAttribute('font-size','18');
-    t2.setAttribute('fill',isSelected?'rgba(255,255,255,0.85)':'#888');
+    t2.setAttribute('fill',(isSelected||isBenchTarget)?'rgba(255,255,255,0.85)':'#888');
     t2.textContent=jerseyNum;
     grp.appendChild(t2);
     if(role==='manager') grp.addEventListener('click',()=>onFieldPlayerClick(i));
@@ -1015,14 +1018,17 @@ function renderField(){
   if(hint){
     if(role==='manager'){hint.style.display='block';}
     const g2=games[currentGameIdx];
-    hint.textContent=fieldSelected!==null
-      ?g2.order[fieldSelected].name.replace(' ','')+'を選択中 — 交換する選手をタップ'
-      :'選手をタップしてポジションを入れ替え';
+    hint.textContent=fieldBenchSelected!==null
+      ?fieldBenchSelected+'を選択中 — 配置する打順スロットをタップ'
+      :fieldSelected!==null
+        ?g2.order[fieldSelected].name.replace(' ','')+'を選択中 — 交換する選手をタップ'
+        :'選手をタップしてポジションを入れ替え';
   }
   renderBench('field-bench');
 }
 let orderSelected=null;
-let benchSelected=null; // ベンチ選手を先に選択した場合の選手名
+let benchSelected=null;      // 打順タブ：ベンチ選手を先に選択した場合の選手名
+let fieldBenchSelected=null; // フィールドタブ：ベンチ選手を先に選択した場合の選手名
 
 function moveOrder(idx,dir){
   const g=games[currentGameIdx];
@@ -1099,15 +1105,27 @@ function renderBench(containerId){
       const row=document.createElement('div');
       row.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid #eee;';
       if(isField){
-        // フィールドタブ：fieldSelectedがあるときだけクリック可
-        const isClickable=role==='manager'&&fieldSelected!==null;
-        if(isClickable){
+        // フィールドタブ：マネージャーは常にクリック可（ベンチ先選択 or フィールド選手選択済みで交換）
+        const isFBSel=role==='manager'&&fieldBenchSelected===p.name;
+        const isFieldSel=role==='manager'&&fieldSelected!==null;
+        if(role==='manager'){
           row.style.cursor='pointer';
-          row.style.background='#e6f1fb';
-          row.addEventListener('click',function(){ swapWithBenchDirect(fieldSelected,p.name); });
+          if(isFBSel) row.style.background='#e6f1fb';
+          else if(isFieldSel) row.style.background='#f0f9e8';
+          row.addEventListener('click',function(){
+            if(fieldSelected!==null){
+              // フィールド選手が先に選択されている → このベンチ選手と交換
+              swapWithBenchDirect(fieldSelected,p.name);
+            } else {
+              // ベンチ選手を選択（または解除）
+              fieldBenchSelected=(fieldBenchSelected===p.name)?null:p.name;
+              renderField();
+            }
+          });
         }
+        const nameColor=isFBSel?'#185fa5':(isFieldSel?'#2a8a2a':'#1a1a1a');
         row.innerHTML='<span class="pos-pill">-</span>'
-          +'<span style="font-size:14px;flex:1;color:'+(isClickable?'#185fa5':'#1a1a1a')+';">'+p.name+'</span>'
+          +'<span style="font-size:14px;flex:1;color:'+nameColor+';">'+p.name+'</span>'
           +'<span style="font-size:12px;color:#888;flex-shrink:0;">#'+(p.num||'-')+'</span>';
       } else {
         // 打順タブ：マネージャーは常にクリック可（ベンチ→打順の選択または打順→ベンチの交換）
@@ -1138,8 +1156,11 @@ function renderBench(containerId){
     container.appendChild(card);
   }
 
-  // 欠席・交代済ボタン（打順タブのみ、マネージャー、選手選択中のとき）
-  if(!isField && role==='manager' && (orderSelected!==null||benchSelected!==null)){
+  // 欠席・交代済ボタン（マネージャー、選手選択中のとき）
+  const anySelected=isField
+    ?(fieldSelected!==null||fieldBenchSelected!==null)
+    :(orderSelected!==null||benchSelected!==null);
+  if(role==='manager' && anySelected){
     const btnWrap=document.createElement('div');
     btnWrap.style.cssText='margin-top:8px;display:flex;gap:8px;';
     const absBtn=document.createElement('button');
@@ -1147,7 +1168,12 @@ function renderBench(containerId){
     absBtn.textContent='欠席へ移動';
     absBtn.addEventListener('click',function(){
       const g2=games[currentGameIdx];
-      const targetName=orderSelected!==null?g2.order[orderSelected].name:benchSelected;
+      let targetName;
+      if(isField){
+        targetName=fieldSelected!==null?g2.order[fieldSelected].name:fieldBenchSelected;
+      } else {
+        targetName=orderSelected!==null?g2.order[orderSelected].name:benchSelected;
+      }
       movePlayerToStatus(targetName,'absent');
     });
     const subBtn=document.createElement('button');
@@ -1155,7 +1181,12 @@ function renderBench(containerId){
     subBtn.textContent='交代済へ移動';
     subBtn.addEventListener('click',function(){
       const g2=games[currentGameIdx];
-      const targetName=orderSelected!==null?g2.order[orderSelected].name:benchSelected;
+      let targetName;
+      if(isField){
+        targetName=fieldSelected!==null?g2.order[fieldSelected].name:fieldBenchSelected;
+      } else {
+        targetName=orderSelected!==null?g2.order[orderSelected].name:benchSelected;
+      }
       movePlayerToStatus(targetName,'substituted');
     });
     btnWrap.appendChild(absBtn);
@@ -1206,6 +1237,7 @@ function swapWithBenchDirect(orderIdx, benchName){
   const currentPos=g.order[orderIdx].pos;
   g.order[orderIdx]={name:benchPlayer.name,pos:currentPos};
   fieldSelected=null;
+  fieldBenchSelected=null;
   renderField();renderOrder();saveData();
 }
 
@@ -1237,6 +1269,8 @@ function movePlayerToStatus(playerName, status){
   g.playerStatus[playerName]=status;
   orderSelected=null;
   benchSelected=null;
+  fieldSelected=null;
+  fieldBenchSelected=null;
   renderOrder();renderField();saveData();
 }
 
@@ -1246,10 +1280,18 @@ function restorePlayerFromStatus(playerName){
   delete g.playerStatus[playerName];
   orderSelected=null;
   benchSelected=null;
+  fieldSelected=null;
+  fieldBenchSelected=null;
   renderOrder();renderField();saveData();
 }
 
 function onFieldPlayerClick(idx){
+  if(fieldBenchSelected!==null){
+    // ベンチ選手が先に選択 → そのフィールドスロットにベンチ選手を配置
+    swapWithBenchDirect(idx, fieldBenchSelected);
+    fieldBenchSelected=null;
+    return; // swapWithBenchDirect内でrenderField/renderOrder/saveData呼び出し済み
+  }
   if(fieldSelected===null){
     fieldSelected=idx;
     renderField();
