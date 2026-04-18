@@ -217,7 +217,7 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
   <div id="gt-order" style="display:none;">
     <div id="div-order-add" style="display:none;margin-bottom:.75rem;"><button class="sbtn" onclick="openAddOrderModal()">＋ 打順に追加</button></div>
     <div class="card" id="order-list"></div>
-    <div id="div-order-notice" style="display:none;margin-top:8px;"><p class="notice">閲覧モード（代表、ベンチコーチ、スコアラーのみ編集可）</p></div>
+    <div id="div-order-notice" style="display:none;margin-top:8px;"><p class="notice">閲覧モード（データ更新者のみ編集可）</p></div>
     <div id="order-bench"></div>
   </div>
   <div id="gt-score" style="display:none;">
@@ -886,8 +886,9 @@ function renderOrder(){
     row.className='order-row';row.dataset.idx=i;
     if(role==='manager'){
       const isSel=orderSelected===i;
-      row.draggable=true;
-      row.style.background=isSel?'#e6f1fb':'';
+      const isBenchTarget=benchSelected!==null; // ベンチ選手が選択済 → 打順行はターゲット
+      row.draggable=!isBenchTarget; // ベンチ選択中はドラッグ無効
+      row.style.background=isSel?'#e6f1fb':(isBenchTarget?'#f0f9e8':'');
       const pos=document.createElement('span');
       pos.className='pos-pill';pos.textContent=e.pos;
       const num=document.createElement('span');
@@ -895,7 +896,7 @@ function renderOrder(){
       const name=document.createElement('span');
       name.className='pname';name.textContent=e.name;
       name.style.cursor='pointer';
-      name.style.color=isSel?'#185fa5':'#1a1a1a';
+      name.style.color=isSel?'#185fa5':(isBenchTarget?'#2a8a2a':'#1a1a1a');
       name.addEventListener('click',function(){onOrderPlayerClick(i);});
       const rp=roster.find(p=>p.name===e.name);
       const numBadge=document.createElement('span');
@@ -1021,6 +1022,7 @@ function renderField(){
   renderBench('field-bench');
 }
 let orderSelected=null;
+let benchSelected=null; // ベンチ選手を先に選択した場合の選手名
 
 function moveOrder(idx,dir){
   const g=games[currentGameIdx];
@@ -1034,6 +1036,12 @@ function moveOrder(idx,dir){
 
 function onOrderPlayerClick(idx){
   const g=games[currentGameIdx];
+  if(benchSelected!==null){
+    // ベンチ選手が先に選択されている → 打順選手と交換
+    swapOrderWithBench(idx, benchSelected);
+    benchSelected=null;
+    return; // swapOrderWithBench内でrenderOrder/renderField/saveData呼び出し済み
+  }
   if(orderSelected===null){
     // 1人目選択
     orderSelected=idx;
@@ -1057,44 +1065,137 @@ function renderBench(containerId){
   if(!wrap) return;
   const g=games[currentGameIdx];
   if(!g){wrap.innerHTML='';return;}
+  const playerStatus=g.playerStatus||{};
   const stamenNames=g.order.map(e=>e.name);
-  const bench=roster.filter(p=>!stamenNames.includes(p.name));
+  // ベンチ：打順外 かつ 欠席・交代済でない
+  const bench=roster.filter(p=>!stamenNames.includes(p.name)&&!playerStatus[p.name]);
+  // 欠席・交代済：打順外 かつ playerStatusあり
+  const absentSub=roster.filter(p=>!stamenNames.includes(p.name)&&playerStatus[p.name]);
   const isField=containerId==='field-bench';
-  const selected=isField?fieldSelected:orderSelected;
+
+  const container=document.createElement('div');
+  container.style.marginTop='1rem';
+
+  // ── ベンチセクション ──
+  const benchLabel=document.createElement('p');
+  benchLabel.style.cssText='font-size:12px;color:#888;margin-bottom:6px;';
   if(bench.length===0){
-    wrap.innerHTML='<div style="margin-top:1rem;"><p style="font-size:12px;color:#888;">ベンチメンバーなし</p></div>';
-    return;
-  }
-  const hint=selected!==null?'<span style="color:#185fa5;"> — 入れ替える選手を選択</span>':'';
-  const div=document.createElement('div');
-  div.style.marginTop='1rem';
-  const label=document.createElement('p');
-  label.style.cssText='font-size:12px;color:#888;margin-bottom:6px;';
-  label.innerHTML='ベンチ（'+bench.length+'名）'+hint;
-  div.appendChild(label);
-  const card=document.createElement('div');
-  card.className='card';
-  card.style.cssText='padding:.75rem 1rem;';
-  bench.forEach(function(p){
-    const row=document.createElement('div');
-    row.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid #eee;';
-    const isClickable=role==='manager'&&selected!==null;
-    if(isClickable){
-      row.style.cursor='pointer';
-      row.style.background='#e6f1fb';
-      row.addEventListener('click',function(){
-        if(isField) swapWithBenchDirect(selected,p.name);
-        else swapOrderWithBench(selected,p.name);
-      });
+    benchLabel.textContent='ベンチメンバーなし';
+    container.appendChild(benchLabel);
+  } else {
+    let hintText='ベンチ（'+bench.length+'名）';
+    if(!isField){
+      if(benchSelected!==null) hintText+=' — 交換する打順選手をタップ';
+      else if(orderSelected!==null) hintText+=' — 交換するベンチ選手をタップ';
+    } else {
+      if(fieldSelected!==null) hintText+='  — 入れ替える選手を選択';
     }
-    row.innerHTML='<span class="pos-pill">-</span>'
-      +'<span style="font-size:14px;flex:1;color:'+(isClickable?'#185fa5':'#1a1a1a')+';">'+p.name+'</span>'
-      +'<span style="font-size:12px;color:#888;flex-shrink:0;">#'+(p.num||'-')+'</span>';
-    card.appendChild(row);
-  });
-  div.appendChild(card);
+    benchLabel.textContent=hintText;
+    container.appendChild(benchLabel);
+    const card=document.createElement('div');
+    card.className='card';
+    card.style.cssText='padding:.75rem 1rem;';
+    bench.forEach(function(p){
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid #eee;';
+      if(isField){
+        // フィールドタブ：fieldSelectedがあるときだけクリック可
+        const isClickable=role==='manager'&&fieldSelected!==null;
+        if(isClickable){
+          row.style.cursor='pointer';
+          row.style.background='#e6f1fb';
+          row.addEventListener('click',function(){ swapWithBenchDirect(fieldSelected,p.name); });
+        }
+        row.innerHTML='<span class="pos-pill">-</span>'
+          +'<span style="font-size:14px;flex:1;color:'+(isClickable?'#185fa5':'#1a1a1a')+';">'+p.name+'</span>'
+          +'<span style="font-size:12px;color:#888;flex-shrink:0;">#'+(p.num||'-')+'</span>';
+      } else {
+        // 打順タブ：マネージャーは常にクリック可（ベンチ→打順の選択または打順→ベンチの交換）
+        const isBenchSel=role==='manager'&&benchSelected===p.name;
+        const isOrderSel=role==='manager'&&orderSelected!==null;
+        if(role==='manager'){
+          row.style.cursor='pointer';
+          if(isBenchSel) row.style.background='#e6f1fb';
+          else if(isOrderSel) row.style.background='#f0f9e8';
+          row.addEventListener('click',function(){
+            if(orderSelected!==null){
+              // 打順選手が先に選択されている → このベンチ選手と交換
+              swapOrderWithBench(orderSelected,p.name);
+            } else {
+              // ベンチ選手を選択（または解除）
+              benchSelected=(benchSelected===p.name)?null:p.name;
+              renderOrder();
+            }
+          });
+        }
+        const nameColor=isBenchSel?'#185fa5':(isOrderSel?'#2a8a2a':'#1a1a1a');
+        row.innerHTML='<span class="pos-pill">-</span>'
+          +'<span style="font-size:14px;flex:1;color:'+nameColor+';">'+p.name+'</span>'
+          +'<span style="font-size:12px;color:#888;flex-shrink:0;">#'+(p.num||'-')+'</span>';
+      }
+      card.appendChild(row);
+    });
+    container.appendChild(card);
+  }
+
+  // 欠席・交代済ボタン（打順タブのみ、マネージャー、選手選択中のとき）
+  if(!isField && role==='manager' && (orderSelected!==null||benchSelected!==null)){
+    const btnWrap=document.createElement('div');
+    btnWrap.style.cssText='margin-top:8px;display:flex;gap:8px;';
+    const absBtn=document.createElement('button');
+    absBtn.style.cssText='flex:1;padding:7px 0;font-size:13px;background:#f5f5f5;color:#555;border:1px solid #ccc;border-radius:8px;cursor:pointer;';
+    absBtn.textContent='欠席へ移動';
+    absBtn.addEventListener('click',function(){
+      const g2=games[currentGameIdx];
+      const targetName=orderSelected!==null?g2.order[orderSelected].name:benchSelected;
+      movePlayerToStatus(targetName,'absent');
+    });
+    const subBtn=document.createElement('button');
+    subBtn.style.cssText='flex:1;padding:7px 0;font-size:13px;background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:8px;cursor:pointer;';
+    subBtn.textContent='交代済へ移動';
+    subBtn.addEventListener('click',function(){
+      const g2=games[currentGameIdx];
+      const targetName=orderSelected!==null?g2.order[orderSelected].name:benchSelected;
+      movePlayerToStatus(targetName,'substituted');
+    });
+    btnWrap.appendChild(absBtn);
+    btnWrap.appendChild(subBtn);
+    container.appendChild(btnWrap);
+  }
+
+  // 欠席・交代済セクション
+  if(absentSub.length>0){
+    const absLabel=document.createElement('p');
+    absLabel.style.cssText='font-size:12px;color:#888;margin-top:14px;margin-bottom:6px;';
+    absLabel.textContent='欠席・交代済（'+absentSub.length+'名）';
+    container.appendChild(absLabel);
+    const absCard=document.createElement('div');
+    absCard.className='card';
+    absCard.style.cssText='padding:.75rem 1rem;';
+    absentSub.forEach(function(p){
+      const row=document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid #eee;';
+      const st=playerStatus[p.name];
+      const badge=st==='absent'
+        ?'<span style="font-size:11px;background:#f5f5f5;color:#888;padding:2px 7px;border-radius:10px;border:1px solid #ccc;">欠席</span>'
+        :'<span style="font-size:11px;background:#fff3cd;color:#856404;padding:2px 7px;border-radius:10px;border:1px solid #ffc107;">交代済</span>';
+      row.innerHTML='<span class="pos-pill">-</span>'
+        +'<span style="font-size:14px;flex:1;color:#aaa;">'+p.name+'</span>'
+        +badge
+        +'<span style="font-size:12px;color:#bbb;flex-shrink:0;">#'+(p.num||'-')+'</span>';
+      if(role==='manager'){
+        // タップでベンチに戻す
+        row.style.cursor='pointer';
+        row.title='タップしてベンチに戻す';
+        row.addEventListener('click',function(){ restorePlayerFromStatus(p.name); });
+      }
+      absCard.appendChild(row);
+    });
+    container.appendChild(absCard);
+  }
+
   wrap.innerHTML='';
-  wrap.appendChild(div);
+  wrap.appendChild(container);
 }
 
 
@@ -1118,13 +1219,33 @@ function swapOrderWithBench(orderIdx, benchName){
   const g=games[currentGameIdx];
   const benchPlayer=roster.find(p=>p.name===benchName);
   if(!benchPlayer) return;
-  // ベンチ選手のスタメンポジションが既に誰かに使われていないかチェック
-  const newPos=benchPlayer.stamenPos||g.order[orderIdx].pos;
-  const dup=g.order.find((e,i)=>i!==orderIdx&&e.pos===newPos&&newPos!=='DH');
   // ポジションはそのまま（現在のスタメンのポジションを引き継ぐ）
   const pos=g.order[orderIdx].pos;
   g.order[orderIdx]={name:benchPlayer.name,pos};
   orderSelected=null;
+  benchSelected=null;
+  renderOrder();renderField();saveData();
+}
+
+function movePlayerToStatus(playerName, status){
+  const g=games[currentGameIdx];
+  if(!g) return;
+  if(!g.playerStatus) g.playerStatus={};
+  // 打順にいる場合は打順から除外
+  const orderIdx=g.order.findIndex(e=>e.name===playerName);
+  if(orderIdx>=0) g.order.splice(orderIdx,1);
+  g.playerStatus[playerName]=status;
+  orderSelected=null;
+  benchSelected=null;
+  renderOrder();renderField();saveData();
+}
+
+function restorePlayerFromStatus(playerName){
+  const g=games[currentGameIdx];
+  if(!g||!g.playerStatus) return;
+  delete g.playerStatus[playerName];
+  orderSelected=null;
+  benchSelected=null;
   renderOrder();renderField();saveData();
 }
 
