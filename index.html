@@ -373,6 +373,7 @@ let games=[];
 let dataVersion=0;
 let currentGameComments=[];
 let commentsUnsubscribe=null;
+let _dataLoaded=false; // Firestoreからデータを受け取るまでtrueにならない（空データ保存防止）
 
 // ── Firebase 初期化（SDK未ロード時もスクリプト全体がクラッシュしないようtry-catchで保護） ──
 const firebaseConfig = {
@@ -1952,6 +1953,8 @@ function _releaseSavePending(){
 }
 
 function saveData(){
+  // Firestoreからデータをまだ受け取っていない場合は保存しない（空データ上書き防止）
+  if(!_dataLoaded){ console.warn('データ未ロードのため保存スキップ'); return; }
   // 呼び出し時点のデータを深くコピーして固定（onSnapshotによる破壊を防ぐ）
   _pendingRoster=JSON.parse(JSON.stringify(roster));
   _pendingGames=JSON.parse(JSON.stringify(games));
@@ -2082,6 +2085,7 @@ function loadData(){
       if(data.roster) roster=data.roster;
       if(data.games) games=data.games;
       dataVersion=data.version||0; // バージョンを常に最新に保つ
+      _dataLoaded=true; // Firestoreからデータ受信完了→以降の保存を許可
       // localStorageも最新化
       try{
         localStorage.setItem('atoms_roster',JSON.stringify(roster));
