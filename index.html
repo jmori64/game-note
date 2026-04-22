@@ -1466,19 +1466,25 @@ function renderPitcherTable(){
       +'</table></div></div>';
 
     // エリア2：アトムズ投手陣指標・ターゲット（静的テキスト）
-    const area2Html=(role==='manager'||role==='staff')?
-      '<div style="background:#f0f7ff;border-left:3px solid #185fa5;border-radius:0 8px 8px 0;padding:10px 12px;margin-bottom:8px;font-size:11px;line-height:1.9;color:#1a1a1a;">'
-      +'<div style="font-weight:600;font-size:12px;color:#185fa5;margin-bottom:6px;">③ アトムズ投手陣指標・ターゲット</div>'
-      +'<div style="font-weight:600;color:#333;margin-bottom:2px;">■ 共通指標</div>'
-      +'<div>① P/IP　→ 【効率】リズムを作れているか。目標「15以下」</div>'
-      +'<div>② WHIP+HBP　 → 【安定感】出塁を許していないか。目標「1.2以下」</div>'
-      +'<div>③ H/IP　→ 【支配力】ヒットを打たれていないか。目標「1以下」</div>'
-      +'<div>④ ER　→ 【結果】自責点を防いでいるか。目標「イニング数×0.5以下」</div>'
-      +'<div style="font-weight:600;color:#333;margin-top:6px;margin-bottom:2px;">■ タイプ別指標</div>'
-      +'<div>⑤ K/(BB+HBP)　→ 【剛腕力】三振で押しているか。目標「2以上」</div>'
-      +'<div>⑥ GB%　→ 【投球術】ゴロを打たせているか。目標「50%以上」</div>'
-      +'</div>'
-      :'';
+    const area2Html=(role==='manager'||role==='staff')
+      ? '<div style="background:#f0f7ff;border-left:3px solid #185fa5;border-radius:0 8px 8px 0;padding:10px 12px;margin-bottom:8px;font-size:11px;line-height:1.9;color:#1a1a1a;">'
+        +'<div style="font-weight:600;font-size:12px;color:#185fa5;margin-bottom:6px;">③ アトムズ投手陣指標・ターゲット</div>'
+        +'<div style="font-weight:600;color:#333;margin-bottom:2px;">■ 共通指標</div>'
+        +'<div>① P/IP　→ 【効率】リズムを作れているか。目標「15以下」</div>'
+        +'<div>② WHIP+HBP　 → 【安定感】出塁を許していないか。目標「1.2以下」</div>'
+        +'<div>③ H/IP　→ 【支配力】ヒットを打たれていないか。目標「1以下」</div>'
+        +'<div>④ ER　→ 【結果】自責点を防いでいるか。目標「イニング数×0.5以下」</div>'
+        +'<div style="font-weight:600;color:#333;margin-top:6px;margin-bottom:2px;">■ タイプ別指標</div>'
+        +'<div>⑤ K/(BB+HBP)　→ 【剛腕力】三振で押しているか。目標「2以上」</div>'
+        +'<div>⑥ GB%　→ 【投球術】ゴロを打たせているか。目標「50%以上」</div>'
+        +'</div>'
+      : role==='member'
+        ? '<div style="background:#f0f7ff;border-left:3px solid #185fa5;border-radius:0 8px 8px 0;padding:10px 12px;margin-bottom:8px;font-size:11px;line-height:1.9;color:#1a1a1a;">'
+          +'<div style="font-weight:600;font-size:12px;color:#185fa5;margin-bottom:6px;">② アトムズ投手陣指標・ターゲット</div>'
+          +'<div style="font-weight:600;color:#333;margin-bottom:2px;">■ 共通指標</div>'
+          +'<div>① P/IP　→ 【効率】リズムを作れているか。目標「15以下」</div>'
+          +'</div>'
+        : '';
 
     html+=`<div style="margin-bottom:1.5rem;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
@@ -1487,8 +1493,8 @@ function renderPitcherTable(){
       </div>
       ${area1Html}
       ${area2Html}
-      ${role==='member'?'':'<div style="font-weight:600;font-size:12px;color:#333;margin-bottom:4px;">③ 基礎数値</div>'}
-      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;${role==='member'?'display:none;':''}">
+      <div style="font-weight:600;font-size:12px;color:#333;margin-bottom:4px;">③ 基礎数値</div>
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
       <table style="border-collapse:collapse;font-size:12px;min-width:100%;border:0.5px solid #ddd;">
         <thead><tr>
           <th style="padding:5px 6px;background:#f5f5f5;border:0.5px solid #ddd;text-align:left;min-width:52px;position:sticky;left:0;">項目</th>
@@ -1670,7 +1676,7 @@ function renderScore(){
       ]).map(row=>`<tr>
         <td style="padding:6px 8px;background:#f5f5f5;border:0.5px solid #ddd;font-weight:500;position:sticky;left:0;white-space:nowrap;">${row.label}</td>
         ${SCORE_INNINGS.map((inn,idx)=>{
-          const val=sc[row.key][idx]!==undefined?sc[row.key][idx]:'';
+          const val=sc[row.key][idx]!=null?sc[row.key][idx]:'';
           const sca=isManager?`onclick="openScoreNumpad('${row.key}',${idx})"`:'';
           const scs=isManager?'cursor:pointer;':'';
           return `<td ${sca} style="padding:6px 8px;border:0.5px solid #ddd;text-align:center;color:#1a1a1a;${scs}">${val}</td>`;
