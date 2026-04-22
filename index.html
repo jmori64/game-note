@@ -2140,6 +2140,7 @@ function saveData(){
   try{
     localStorage.setItem('atoms_roster',JSON.stringify(_pendingRoster));
     localStorage.setItem('atoms_games',JSON.stringify(_pendingGames));
+    localStorage.setItem('atoms_unsaved','true'); // Firestoreへの保存が完了するまでフラグを立てる
   }catch(e){}
   // Firestoreはデバウンス（800ms以内の連続保存をまとめて偽CONFLICT防止）
   clearTimeout(_saveTimer);
@@ -2168,7 +2169,11 @@ function _commitSave(){
       return serverVersion+1;
     });
   })
-  .then(newVersion=>{dataVersion=newVersion;_releaseSavePending();})
+  .then(newVersion=>{
+    dataVersion=newVersion;
+    _releaseSavePending();
+    try{localStorage.removeItem('atoms_unsaved');}catch(e){} // Firestore保存完了→フラグを解除
+  })
   .catch(e=>{
     _releaseSavePending();
     if(e.isConflict){
@@ -2257,6 +2262,36 @@ function loadData(){
     if(_savePending) return;
     if(docSnap.exists){
       const data=docSnap.data();
+      const firestoreGames=data.games||[];
+
+      // ── 未保存データ検出（初回ロード時のみ）──
+      // beforeunload中にトランザクションが完了しなかった場合、localStorageに新しいデータが残っている
+      if(!_dataLoaded){
+        const hasUnsaved=localStorage.getItem('atoms_unsaved')==='true';
+        if(hasUnsaved){
+          let lsGames=[];
+          try{ lsGames=JSON.parse(localStorage.getItem('atoms_games')||'[]'); }catch(e){}
+          if(lsGames.length>firestoreGames.length){
+            // localStorageの方が試合数が多い → 前回保存できなかったデータが残っている
+            const msg='⚠️ 前回保存できなかったデータが見つかりました。\n\n'
+              +'Firestore（クラウド）: '+firestoreGames.length+'試合\n'
+              +'端末内（未送信）: '+lsGames.length+'試合\n\n'
+              +'端末内のデータを復元しますか？';
+            if(confirm(msg)){
+              roster=JSON.parse(localStorage.getItem('atoms_roster')||JSON.stringify(roster));
+              games=lsGames;
+              dataVersion=data.version||0;
+              _dataLoaded=true;
+              localStorage.removeItem('atoms_unsaved');
+              if(role){renderGames();renderRoster();}
+              saveData(); // Firestoreに再送信
+              return;
+            }
+          }
+          localStorage.removeItem('atoms_unsaved');
+        }
+      }
+
       if(data.roster) roster=data.roster;
       if(data.games) games=data.games;
       dataVersion=data.version||0; // バージョンを常に最新に保つ
