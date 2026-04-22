@@ -167,7 +167,7 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
 
 <!-- メイン -->
 <div id="s-main" style="display:none;">
-  <div class="header"><button onclick="backToLogin()" style="font-size:13px;color:#888;background:none;border:none;cursor:pointer;">← 戻る</button><div style="display:flex;align-items:center;gap:6px;"><span class="badge" id="role-badge"></span><button onclick="openExportMenu()" style="font-size:11px;padding:3px 8px;border:0.5px solid #ccc;border-radius:8px;background:none;color:#666;cursor:pointer;" id="btn-excel">Excel</button><button onclick="exportData()" style="font-size:11px;padding:3px 8px;border:0.5px solid #ccc;border-radius:8px;background:none;color:#666;cursor:pointer;" id="btn-export" style="display:none;">Backup</button><label id="btn-import-label" style="font-size:11px;padding:3px 8px;border:0.5px solid #ccc;border-radius:8px;background:none;color:#666;cursor:pointer;display:none;">Restore<input type="file" id="import-file" accept=".json" style="display:none;" onchange="importData(event)"></label></div></div>
+  <div class="header"><button onclick="backToLogin()" style="font-size:13px;color:#888;background:none;border:none;cursor:pointer;">← 戻る</button><div style="display:flex;align-items:center;gap:6px;"><span id="save-status" style="font-size:10px;padding:2px 7px;border-radius:10px;display:none;"></span><span class="badge" id="role-badge"></span><button onclick="openExportMenu()" style="font-size:11px;padding:3px 8px;border:0.5px solid #ccc;border-radius:8px;background:none;color:#666;cursor:pointer;" id="btn-excel">Excel</button><button onclick="exportData()" style="font-size:11px;padding:3px 8px;border:0.5px solid #ccc;border-radius:8px;background:none;color:#666;cursor:pointer;" id="btn-export" style="display:none;">Backup</button><label id="btn-import-label" style="font-size:11px;padding:3px 8px;border:0.5px solid #ccc;border-radius:8px;background:none;color:#666;cursor:pointer;display:none;">Restore<input type="file" id="import-file" accept=".json" style="display:none;" onchange="importData(event)"></label></div></div>
   <div class="nav">
     <button class="active" onclick="gotoPage('games',this)">試合一覧</button>
     <button id="nav-roster-btn" onclick="gotoPage('roster',this)">選手登録</button>
@@ -625,9 +625,14 @@ function renderGames(){
 }
 
 function deleteGame(idx){
+  if(idx<0||idx>=games.length) return;
   const g=games[idx];
   confirmDelete('試合を削除',`vs ${g.opp}（${g.date}）を削除しますか？`,()=>{
-    games.splice(idx,1);renderGames();saveData();
+    games.splice(idx,1);
+    // 削除した試合が現在開いているゲームの場合はリセット
+    if(currentGameIdx===idx) currentGameIdx=-1;
+    else if(currentGameIdx>idx) currentGameIdx--; // インデックスずれ補正
+    renderGames();saveData();
   });
 }
 function openGameModal(){
@@ -783,7 +788,10 @@ function deletePlayer(idx){
   overlay.querySelector('#del-p-cancel').addEventListener('click',()=>overlay.remove());
   overlay.querySelector('#del-p-ok').addEventListener('click',()=>{
     overlay.remove();
-    roster.splice(idx,1);renderRoster();saveData();
+    roster.splice(idx,1);
+    if(editPlayerIdx===idx) editPlayerIdx=-1;
+    else if(editPlayerIdx>idx) editPlayerIdx--;
+    renderRoster();saveData();
   });
 }
 
@@ -931,7 +939,11 @@ function onDrop(e){
   renderOrder();renderField();saveData();
 }
 function onDragEnd(){this.classList.remove('dragging');dragSrcIdx=null;}
-function changePos(idx,newPos){games[currentGameIdx].order[idx].pos=newPos;renderField();saveData();}
+function changePos(idx,newPos){
+  const g=games[currentGameIdx];
+  if(!g||!g.order[idx]) return;
+  g.order[idx].pos=newPos;renderField();saveData();
+}
 
 function openAddOrderModal(){
   const sel=document.getElementById('oo-player');
@@ -946,8 +958,10 @@ function updateOoPosPreview(){
 }
 function saveOrderEntry(){
   const g=games[currentGameIdx];
+  if(!g) return;
   const pidx=parseInt(document.getElementById('oo-player').value);
-  const p=roster[pidx];
+  const p=isNaN(pidx)?null:roster[pidx];
+  if(!p){alert('選手を選択してください');return;}
   const pos=p.stamenPos||'右';
   const dup=g.order.find(e=>e.pos===pos&&pos!=='DH');
   if(dup){
@@ -1263,9 +1277,9 @@ function movePlayerToStatus(playerName, status){
   const g=games[currentGameIdx];
   if(!g) return;
   if(!g.playerStatus) g.playerStatus={};
-  // 打順にいる場合は打順から除外
+  // 打順にいる場合は打順から除外（findIndex=-1のときsplice(-1,1)が末尾を消すバグ防止）
   const orderIdx=g.order.findIndex(e=>e.name===playerName);
-  if(orderIdx>=0) g.order.splice(orderIdx,1);
+  if(orderIdx>=0) g.order.splice(orderIdx,1); // >=0 の確認が必須
   g.playerStatus[playerName]=status;
   orderSelected=null;
   benchSelected=null;
@@ -1327,8 +1341,11 @@ function openPitcherModal(){
 }
 function addPitcherRow(){
   const g=games[currentGameIdx];
+  if(!g) return;
+  if(!g.pitchers) g.pitchers=[];
   const pidx=parseInt(document.getElementById('pt-player').value);
-  const p=roster[pidx];
+  const p=isNaN(pidx)?null:roster[pidx];
+  if(!p){alert('選手を選択してください');return;}
   if(g.pitchers.find(x=>x.name===p.name)){alert('すでに追加されています');return;}
   g.pitchers.push({name:p.name,num:p.num,data:{'球数':{},'与四球':{},'奪三振':{},'被安打':{},'投球回':{}}});
   closeModal('mo-pitcher');renderPitcherTable();saveData();
@@ -1582,9 +1599,12 @@ function numpadBack(){numpadVal=numpadVal.slice(0,-1);updateNumpadDisplay();}
 function numpadClear(){numpadVal='';updateNumpadDisplay();}
 function updateNumpadDisplay(){document.getElementById('numpad-display').textContent=numpadVal===''?'-':numpadVal;}
 function numpadConfirm(){
+  const g=games[currentGameIdx];
+  if(!g){closeModal('mo-numpad');return;}
   if(window._numpadMode==='score'){
-    const g=games[currentGameIdx];
+    if(!g.score) g.score={batting:'先攻',atoms:[],opp:[]};
     const{team,idx}=scoreNumpadTarget;
+    if(!g.score[team]) g.score[team]=[];
     if(numpadVal==='') delete g.score[team][idx];
     else g.score[team][idx]=parseInt(numpadVal);
     window._numpadMode=null;
@@ -1592,10 +1612,13 @@ function numpadConfirm(){
     return;
   }
   const{pitcherIdx,row,inning}=numpadTarget;
-  games[currentGameIdx].pitchers[pitcherIdx].data[row][inning]=numpadVal===''?undefined:parseInt(numpadVal);
+  if(!g.pitchers||!g.pitchers[pitcherIdx]){closeModal('mo-numpad');return;}
+  g.pitchers[pitcherIdx].data[row][inning]=numpadVal===''?undefined:parseInt(numpadVal);
   closeModal('mo-numpad');renderPitcherTable();saveData();
 }
 function deletePitcher(idx){
+  const g=games[currentGameIdx];
+  if(!g||!g.pitchers||idx<0||idx>=g.pitchers.length) return;
   confirmDelete('投手記録を削除','この投手記録を削除しますか？',()=>{
     games[currentGameIdx].pitchers.splice(idx,1);renderPitcherTable();saveData();
   });
@@ -1753,13 +1776,17 @@ function startCountdown(endTimeStr){
 
 function setScoreTime(key, val){
   const g=games[currentGameIdx];
+  if(!g) return;
   if(!g.score) g.score={batting:'先攻',atoms:[],opp:[],startTime:'',duration:90};
   g.score[key]=key==='duration'?parseInt(val):val;
   saveData();renderScore();
 }
 
 function setScoreBatting(val){
-  games[currentGameIdx].score.batting=val;
+  const g=games[currentGameIdx];
+  if(!g) return;
+  if(!g.score) g.score={batting:'先攻',atoms:[],opp:[]};
+  g.score.batting=val;
   saveData();renderScore();
 }
 
@@ -2109,6 +2136,19 @@ function exportScoreExcel(){
 
 
 // ── 保存制御 ──
+let _saveStatusTimer=null;
+function _showSaveStatus(text, color, bg, autoClearMs=0){
+  const el=document.getElementById('save-status');
+  if(!el) return;
+  clearTimeout(_saveStatusTimer);
+  el.textContent=text;
+  el.style.color=color;
+  el.style.background=bg;
+  el.style.display='inline-block';
+  if(autoClearMs>0){
+    _saveStatusTimer=setTimeout(()=>{ el.style.display='none'; }, autoClearMs);
+  }
+}
 let _saveTimer=null;
 let _savePending=false;
 let _savePendingTimeout=null; // デッドロック防止タイムアウト
@@ -2140,8 +2180,14 @@ function saveData(){
   try{
     localStorage.setItem('atoms_roster',JSON.stringify(_pendingRoster));
     localStorage.setItem('atoms_games',JSON.stringify(_pendingGames));
-    localStorage.setItem('atoms_unsaved','true'); // Firestoreへの保存が完了するまでフラグを立てる
-  }catch(e){}
+    localStorage.setItem('atoms_unsaved','true');
+  }catch(e){
+    // クォータ超過など localStorage が使えない場合はユーザーに通知
+    if(e && (e.name==='QuotaExceededError'||e.code===22)){
+      _showSaveStatus('⚠️ 端末容量不足', '#b45309', '#fef9c3');
+    }
+  }
+  _showSaveStatus('保存中…', '#555', '#f5f5f5');
   // Firestoreはデバウンス（800ms以内の連続保存をまとめて偽CONFLICT防止）
   clearTimeout(_saveTimer);
   _saveTimer=setTimeout(_commitSave,800);
@@ -2172,7 +2218,8 @@ function _commitSave(){
   .then(newVersion=>{
     dataVersion=newVersion;
     _releaseSavePending();
-    try{localStorage.removeItem('atoms_unsaved');}catch(e){} // Firestore保存完了→フラグを解除
+    try{localStorage.removeItem('atoms_unsaved');}catch(e){}
+    _showSaveStatus('✓ 保存完了', '#166534', '#dcfce7', 2000); // 2秒後に消える
   })
   .catch(e=>{
     _releaseSavePending();
@@ -2199,6 +2246,7 @@ function _commitSave(){
       }
     }else{
       console.error('Firestore保存エラー:',e);
+      _showSaveStatus('⚠️ 保存失敗', '#991b1b', '#fee2e2'); // 消えずに残す（ユーザーに確認させる）
     }
   });
 }
@@ -2294,17 +2342,22 @@ function loadData(){
 
       if(data.roster) roster=data.roster;
       if(data.games) games=data.games;
-      dataVersion=data.version||0; // バージョンを常に最新に保つ
-      _dataLoaded=true; // Firestoreからデータ受信完了→以降の保存を許可
+      dataVersion=data.version||0;
+      _dataLoaded=true;
       // localStorageも最新化
       try{
         localStorage.setItem('atoms_roster',JSON.stringify(roster));
         localStorage.setItem('atoms_games',JSON.stringify(games));
       }catch(e){}
+      // currentGameIdx が範囲外になっていたらリセット
+      if(currentGameIdx>=games.length) currentGameIdx=-1;
       // すでにログイン済みならUIを更新
       if(role){renderGames();renderRoster();}
     }
-  }, e=>console.error('Firestore読み込みエラー:', e));
+  }, e=>{
+    console.error('Firestore読み込みエラー:', e);
+    _showSaveStatus('⚠️ 通信エラー', '#991b1b', '#fee2e2');
+  });
 }
 </script>
 </body>
