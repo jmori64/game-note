@@ -484,6 +484,227 @@ let commentsUnsubscribe = null;
 /** Firestoreからデータを受け取るまでtrueにならない（空データ保存防止） */
 let _dataLoaded = false;
 
+// ══════════════════════════════════════════════════════════════════
+// LOGIC — 純粋関数（Pure Functions）名前空間
+// DOM・グローバル変数に触れず、引数のみから結果を返す。
+// ══════════════════════════════════════════════════════════════════
+const LOGIC = Object.freeze({
+
+  // ────────────────────────────────────────────────────────────────
+  // スコア集計
+  // ────────────────────────────────────────────────────────────────
+
+  /**
+   * イニングスコア配列を合計する（undefined/空文字は0扱い）
+   * @param {Array<number|undefined>} innings - イニング得点配列
+   * @returns {number} 合計得点
+   */
+  sumInnings(innings) {
+    return (innings || []).reduce((s, v) => s + (parseInt(v) || 0), 0);
+  },
+
+  // ────────────────────────────────────────────────────────────────
+  // 投手指標計算
+  // ────────────────────────────────────────────────────────────────
+
+  /**
+   * 1つの PitcherData をイニング別集計オブジェクトに変換する
+   * @param {PitcherData} pt - 投手データ
+   * @returns {Object.<number, {p:number,ip:number,bb:number,hbp:number,h:number,k:number,er:number,gb:number,gbh:number,tb:number}>}
+   */
+  buildPitcherInnData(pt) {
+    const byInn = {};
+    INNINGS.forEach(i => {
+      byInn[i] = {
+        p:   parseInt(pt.data['球数']?.[i])    || 0,
+        ip:  parseFloat(pt.data['投球回']?.[i]) || 0,
+        bb:  parseInt(pt.data['与四球']?.[i])  || 0,
+        hbp: parseInt(pt.data['死球']?.[i])    || 0,
+        h:   parseInt(pt.data['被安打']?.[i])  || 0,
+        k:   parseInt(pt.data['奪三振']?.[i])  || 0,
+        er:  parseInt(pt.data['自責点']?.[i])  || 0,
+        gb:  parseInt(pt.data['ゴロ']?.[i])    || 0,
+        gbh: parseInt(pt.data['ゴロ安打']?.[i]) || 0,
+        tb:  parseInt(pt.data['全打球']?.[i])  || 0,
+      };
+    });
+    return byInn;
+  },
+
+  /**
+   * 複数試合の投手データをイニング別に累積集計する
+   * @param {Game[]} gameList   - 集計対象の試合リスト（過去3試合など）
+   * @param {string} pitcherName - 集計対象の投手名
+   * @returns {Object.<number, {p:number,ip:number,bb:number,hbp:number,h:number,k:number,er:number,gb:number,gbh:number,tb:number}>}
+   */
+  accumulatePitcherInnData(gameList, pitcherName) {
+    const acc = {};
+    INNINGS.forEach(i => {
+      acc[i] = {p:0, ip:0, bb:0, hbp:0, h:0, k:0, er:0, gb:0, gbh:0, tb:0};
+    });
+    gameList.forEach(pg => {
+      if (!pg.pitchers) return;
+      const pp = pg.pitchers.find(x => x.name === pitcherName);
+      if (!pp || !pp.data) return;
+      INNINGS.forEach(i => {
+        acc[i].p   += parseInt(pp.data['球数']?.[i])    || 0;
+        acc[i].ip  += parseFloat(pp.data['投球回']?.[i]) || 0;
+        acc[i].bb  += parseInt(pp.data['与四球']?.[i])  || 0;
+        acc[i].hbp += parseInt(pp.data['死球']?.[i])    || 0;
+        acc[i].h   += parseInt(pp.data['被安打']?.[i])  || 0;
+        acc[i].k   += parseInt(pp.data['奪三振']?.[i])  || 0;
+        acc[i].er  += parseInt(pp.data['自責点']?.[i])  || 0;
+        acc[i].gb  += parseInt(pp.data['ゴロ']?.[i])    || 0;
+        acc[i].gbh += parseInt(pp.data['ゴロ安打']?.[i]) || 0;
+        acc[i].tb  += parseInt(pp.data['全打球']?.[i])  || 0;
+      });
+    });
+    return acc;
+  },
+
+  /**
+   * イニング別集計オブジェクトを全イニング横断で合算する
+   * @param {Object.<number, {p:number,ip:number,bb:number,hbp:number,h:number,k:number,er:number,gb:number,gbh:number,tb:number}>} byInn
+   * @returns {{p:number,ip:number,bb:number,hbp:number,h:number,k:number,er:number,gb:number,gbh:number,tb:number}}
+   */
+  sumPitcherByInn(byInn) {
+    return INNINGS.reduce((a, i) => {
+      Object.keys(byInn[i]).forEach(k => { a[k] = (a[k] || 0) + byInn[i][k]; });
+      return a;
+    }, {p:0, ip:0, bb:0, hbp:0, h:0, k:0, er:0, gb:0, gbh:0, tb:0});
+  },
+
+  /**
+   * 集計済み投手データから表示用指標を計算して返す
+   * @param {{p:number,ip:number,bb:number,hbp:number,h:number,k:number,er:number,gb:number,gbh:number,tb:number}} d
+   * @returns {{pip:string|number, whip:string, hip:string, er:string, kbb:string, gb:string}}
+   */
+  calcPitcherMetrics(d) {
+    return {
+      pip:  d.ip > 0 ? Math.round(d.p / d.ip) : '-',
+      whip: d.ip > 0 ? ((d.bb + d.hbp + d.h) / d.ip).toFixed(2) : '-',
+      hip:  d.ip > 0 ? (d.h / d.ip).toFixed(2) : '-',
+      er:   d.ip > 0 ? String(d.er) : '-',
+      kbb:  (d.bb + d.hbp) > 0 ? (d.k / (d.bb + d.hbp)).toFixed(2) : (d.ip > 0 ? '∞' : '-'),
+      gb:   (d.tb + d.h) > 0 ? Math.round((d.gb + d.gbh) / (d.tb + d.h) * 100) + '%' : '-',
+    };
+  },
+
+  // ────────────────────────────────────────────────────────────────
+  // 打順操作（不変: 元配列を変更せず新しい配列/オブジェクトを返す）
+  // ────────────────────────────────────────────────────────────────
+
+  /**
+   * 打順配列の2スロットを入れ替えた新しい配列を返す（範囲外なら null）
+   * @param {OrderEntry[]} order - 現在の打順配列
+   * @param {number}       idxA  - 入れ替えるインデックスA
+   * @param {number}       idxB  - 入れ替えるインデックスB
+   * @returns {OrderEntry[]|null} 入れ替え後の配列、範囲外なら null
+   */
+  swapOrder(order, idxA, idxB) {
+    if (idxA < 0 || idxA >= order.length || idxB < 0 || idxB >= order.length) return null;
+    const next = [...order];
+    const tmp  = {...next[idxA]};
+    next[idxA] = {...next[idxB]};
+    next[idxB] = tmp;
+    return next;
+  },
+
+  /**
+   * ドラッグ&ドロップ: 要素を fromIdx から toIdx へ移動した新しい配列を返す
+   * @param {OrderEntry[]} order   - 現在の打順配列
+   * @param {number}       fromIdx - 移動元インデックス
+   * @param {number}       toIdx   - 移動先インデックス
+   * @returns {OrderEntry[]} 並び替え後の新しい配列
+   */
+  moveOrderItem(order, fromIdx, toIdx) {
+    const next = [...order];
+    const [moved] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, moved);
+    return next;
+  },
+
+  /**
+   * 打順スロットをベンチ選手で置き換えた新しい配列を返す（ポジションは現スロットを引き継ぎ）
+   * @param {OrderEntry[]} order       - 現在の打順配列
+   * @param {number}       orderIdx    - 置き換えるスロットのインデックス
+   * @param {Player}       benchPlayer - ベンチ選手オブジェクト
+   * @returns {OrderEntry[]} 置き換え後の新しい配列
+   */
+  replaceOrderSlotWithBench(order, orderIdx, benchPlayer) {
+    const next      = [...order];
+    next[orderIdx]  = {name: benchPlayer.name, pos: next[orderIdx].pos};
+    return next;
+  },
+
+  /**
+   * 選手を打順から除外し playerStatus に追加した新しい値を返す
+   * @param {Game}                                               game       - 対象試合データ
+   * @param {string}                                             playerName - 対象選手名
+   * @param {'absent'|'substituted'}                            status     - 設定するステータス
+   * @returns {{order: OrderEntry[], playerStatus: Object.<string,'absent'|'substituted'>}}
+   */
+  removePlayerFromOrder(game, playerName, status) {
+    const newOrder = [...game.order];
+    const idx = newOrder.findIndex(e => e.name === playerName);
+    if (idx >= 0) newOrder.splice(idx, 1); // >=0 確認が必須（splice(-1,1)は末尾を消す）
+    const newStatus = {...(game.playerStatus || {}), [playerName]: status};
+    return {order: newOrder, playerStatus: newStatus};
+  },
+
+  /**
+   * playerStatus からエントリを削除した新しいステータスマップを返す
+   * @param {Object.<string,'absent'|'substituted'>} playerStatus - 現在のステータスマップ
+   * @param {string}                                 playerName   - 復元する選手名
+   * @returns {Object.<string,'absent'|'substituted'>} 更新後のステータスマップ
+   */
+  restorePlayerStatus(playerStatus, playerName) {
+    const next = {...playerStatus};
+    delete next[playerName];
+    return next;
+  },
+
+  /**
+   * 打順配列に同じポジションが既に存在するか調べる（DH は重複許可）
+   * @param {OrderEntry[]} order - 現在の打順配列
+   * @param {string}       pos   - チェックするポジション文字列
+   * @returns {OrderEntry|undefined} 重複エントリ（なければ undefined）
+   */
+  findDuplicatePos(order, pos) {
+    if (pos === 'DH') return undefined;
+    return order.find(e => e.pos === pos);
+  },
+
+  /**
+   * フィールドタブ: 2スロット間でポジションだけを入れ替える（選手・打順番号は不変）
+   * @param {OrderEntry[]} order - 現在の打順配列
+   * @param {number}       idxA  - 入れ替えるスロットA
+   * @param {number}       idxB  - 入れ替えるスロットB
+   * @returns {OrderEntry[]} ポジション入れ替え後の新しい配列
+   */
+  swapOrderPositions(order, idxA, idxB) {
+    const next = order.map(e => ({...e}));
+    const tmpPos = next[idxA].pos;
+    next[idxA].pos = next[idxB].pos;
+    next[idxB].pos = tmpPos;
+    return next;
+  },
+
+  /**
+   * PitcherData の各行キーについてイニング合計を計算する（基礎数値テーブルの「計」列用）
+   * @param {PitcherData} pt   - 投手データ
+   * @param {string[]}    rows - 集計する行キー配列（例: PITCHER_ROWS）
+   * @returns {Object.<string, number>} 行キー → イニング合計値のマップ
+   */
+  calcPitcherRowTotals(pt, rows) {
+    const totals = {};
+    rows.forEach(row => {
+      totals[row] = INNINGS.reduce((s, inn) => s + (parseInt(pt.data[row]?.[inn]) || 0), 0);
+    });
+    return totals;
+  },
+});
+
 // ── Firebase 初期化（SDK未ロード時もスクリプト全体がクラッシュしないようtry-catchで保護） ──
 const firebaseConfig = {
   apiKey: "AIzaSyCGrzpdj1bw5hMHk2BUPU-saYuvOeBBIIo",
@@ -704,8 +925,8 @@ function renderGames(){
     info.style.flex='1';
     info.style.cursor='pointer';
     const sc2=g.score||{atoms:[],opp:[]};
-    const aTotal=(sc2.atoms||[]).reduce((s,v)=>s+(parseInt(v)||0),0);
-    const oTotal=(sc2.opp||[]).reduce((s,v)=>s+(parseInt(v)||0),0);
+    const aTotal=LOGIC.sumInnings(sc2.atoms);
+    const oTotal=LOGIC.sumInnings(sc2.opp);
     const hasScore2=(sc2.atoms||[]).some(v=>v!==undefined&&v!=='');
     const batting2=sc2.batting||'先攻';
     const color2=aTotal>oTotal?'#185fa5':aTotal<oTotal?'#a32d2d':'#888';
@@ -1126,8 +1347,7 @@ function onDrop(e){
   const destIdx=parseInt(this.dataset.idx);
   if(dragSrcIdx===null||dragSrcIdx===destIdx)return;
   const g=games[currentGameIdx];
-  const moved=g.order.splice(dragSrcIdx,1)[0];
-  g.order.splice(destIdx,0,moved);
+  g.order=LOGIC.moveOrderItem(g.order, dragSrcIdx, destIdx);
   renderOrder();renderField();saveData();
 }
 function onDragEnd(){this.classList.remove('dragging');dragSrcIdx=null;}
@@ -1165,7 +1385,7 @@ function saveOrderEntry(){
   const p=isNaN(pidx)?null:roster[pidx];
   if(!p){alert('選手を選択してください');return;}
   const pos=p.stamenPos||'右';
-  const dup=g.order.find(e=>e.pos===pos&&pos!=='DH');
+  const dup=LOGIC.findDuplicatePos(g.order, pos);
   if(dup){
     alert(pos+'はすでに'+dup.name+'が入っています。\nフィールドタブで入れ替えてください。');return;
   }
@@ -1258,11 +1478,9 @@ let fieldBenchSelected=null; // フィールドタブ：ベンチ選手を先に
  */
 function moveOrder(idx,dir){
   const g=games[currentGameIdx];
-  const newIdx=idx+dir;
-  if(newIdx<0||newIdx>=g.order.length) return;
-  const tmp=g.order[idx];
-  g.order[idx]=g.order[newIdx];
-  g.order[newIdx]=tmp;
+  const newOrder=LOGIC.swapOrder(g.order, idx, idx+dir);
+  if(!newOrder) return; // 範囲外
+  g.order=newOrder;
   renderOrder();renderField();saveData();
 }
 
@@ -1289,9 +1507,7 @@ function onOrderPlayerClick(idx){
     renderOrder();
   } else {
     // 2人目選択→打順入れ替え（名前+ポジションごと移動）
-    const tmp={...g.order[orderSelected]};
-    g.order[orderSelected]={...g.order[idx]};
-    g.order[idx]=tmp;
+    g.order=LOGIC.swapOrder(g.order, orderSelected, idx);
     orderSelected=null;
     renderOrder();renderField();saveData();
   }
@@ -1476,8 +1692,7 @@ function swapWithBenchDirect(orderIdx, benchName){
   const g=games[currentGameIdx];
   const benchPlayer=roster.find(p=>p.name===benchName);
   if(!benchPlayer) return;
-  const currentPos=g.order[orderIdx].pos;
-  g.order[orderIdx]={name:benchPlayer.name,pos:currentPos};
+  g.order=LOGIC.replaceOrderSlotWithBench(g.order, orderIdx, benchPlayer);
   fieldSelected=null;
   fieldBenchSelected=null;
   renderField();renderOrder();saveData();
@@ -1499,9 +1714,7 @@ function swapOrderWithBench(orderIdx, benchName){
   const g=games[currentGameIdx];
   const benchPlayer=roster.find(p=>p.name===benchName);
   if(!benchPlayer) return;
-  // ポジションはそのまま（現在のスタメンのポジションを引き継ぐ）
-  const pos=g.order[orderIdx].pos;
-  g.order[orderIdx]={name:benchPlayer.name,pos};
+  g.order=LOGIC.replaceOrderSlotWithBench(g.order, orderIdx, benchPlayer);
   orderSelected=null;
   benchSelected=null;
   renderOrder();renderField();saveData();
@@ -1516,11 +1729,9 @@ function swapOrderWithBench(orderIdx, benchName){
 function movePlayerToStatus(playerName, status){
   const g=games[currentGameIdx];
   if(!g) return;
-  if(!g.playerStatus) g.playerStatus={};
-  // 打順にいる場合は打順から除外（findIndex=-1のときsplice(-1,1)が末尾を消すバグ防止）
-  const orderIdx=g.order.findIndex(e=>e.name===playerName);
-  if(orderIdx>=0) g.order.splice(orderIdx,1); // >=0 の確認が必須
-  g.playerStatus[playerName]=status;
+  const {order, playerStatus}=LOGIC.removePlayerFromOrder(g, playerName, status);
+  g.order=order;
+  g.playerStatus=playerStatus;
   orderSelected=null;
   benchSelected=null;
   fieldSelected=null;
@@ -1536,7 +1747,7 @@ function movePlayerToStatus(playerName, status){
 function restorePlayerFromStatus(playerName){
   const g=games[currentGameIdx];
   if(!g||!g.playerStatus) return;
-  delete g.playerStatus[playerName];
+  g.playerStatus=LOGIC.restorePlayerStatus(g.playerStatus, playerName);
   orderSelected=null;
   benchSelected=null;
   fieldSelected=null;
@@ -1565,9 +1776,7 @@ function onFieldPlayerClick(idx){
   } else {
     // ポジションのみ入れ替え（打順・選手はそのまま）
     const g=games[currentGameIdx];
-    const tmpPos=g.order[fieldSelected].pos;
-    g.order[fieldSelected].pos=g.order[idx].pos;
-    g.order[idx].pos=tmpPos;
+    g.order=LOGIC.swapOrderPositions(g.order, fieldSelected, idx);
     fieldSelected=null;
     renderField();renderOrder();saveData();
   }
@@ -1632,8 +1841,7 @@ function renderPitcherTable(){
       +b+'</div>';
   };
   g.pitchers.forEach((pt,pi)=>{
-    const totals={};
-    PITCHER_ROWS.forEach(row=>{totals[row]=INNINGS.reduce((s,inn)=>s+(parseInt(pt.data[row][inn])||0),0);});
+    const totals=LOGIC.calcPitcherRowTotals(pt, PITCHER_ROWS);
 
     // 現在の試合より前の試合の累計
     const prevGames2=games.filter(pg=>pg.date<g.date);
@@ -1665,49 +1873,11 @@ function renderPitcherTable(){
 
     // エリア1：実績
     const prev3=prevGames2.slice(-3);
-    const pastByInn={};
-    INNINGS.forEach(i=>{pastByInn[i]={p:0,ip:0,bb:0,hbp:0,h:0,k:0,er:0,gb:0,gbh:0,tb:0};});
-    prev3.forEach(pg=>{
-      if(!pg.pitchers) return;
-      const pp=pg.pitchers.find(x=>x.name===pt.name);
-      if(!pp||!pp.data) return;
-      INNINGS.forEach(i=>{
-        pastByInn[i].p+=parseInt(pp.data['球数']?.[i])||0;
-        pastByInn[i].ip+=parseFloat(pp.data['投球回']?.[i])||0;
-        pastByInn[i].bb+=parseInt(pp.data['与四球']?.[i])||0;
-        pastByInn[i].hbp+=parseInt(pp.data['死球']?.[i])||0;
-        pastByInn[i].h+=parseInt(pp.data['被安打']?.[i])||0;
-        pastByInn[i].k+=parseInt(pp.data['奪三振']?.[i])||0;
-        pastByInn[i].er+=parseInt(pp.data['自責点']?.[i])||0;
-        pastByInn[i].gb+=parseInt(pp.data['ゴロ']?.[i])||0;
-        pastByInn[i].gbh+=parseInt(pp.data['ゴロ安打']?.[i])||0;
-        pastByInn[i].tb+=parseInt(pp.data['全打球']?.[i])||0;
-      });
-    });
-    const curByInn={};
-    INNINGS.forEach(i=>{curByInn[i]={
-      p:parseInt(pt.data['球数']?.[i])||0,
-      ip:parseFloat(pt.data['投球回']?.[i])||0,
-      bb:parseInt(pt.data['与四球']?.[i])||0,
-      hbp:parseInt(pt.data['死球']?.[i])||0,
-      h:parseInt(pt.data['被安打']?.[i])||0,
-      k:parseInt(pt.data['奪三振']?.[i])||0,
-      er:parseInt(pt.data['自責点']?.[i])||0,
-      gb:parseInt(pt.data['ゴロ']?.[i])||0,
-      gbh:parseInt(pt.data['ゴロ安打']?.[i])||0,
-      tb:parseInt(pt.data['全打球']?.[i])||0,
-    };});
-    const sumD=(byInn)=>INNINGS.reduce((a,i)=>{Object.keys(byInn[i]).forEach(k=>{a[k]=(a[k]||0)+byInn[i][k];});return a;},{p:0,ip:0,bb:0,hbp:0,h:0,k:0,er:0,gb:0,gbh:0,tb:0});
-    const calcM=(d)=>({
-      pip: d.ip>0?Math.round(d.p/d.ip):'-',
-      whip: d.ip>0?((d.bb+d.hbp+d.h)/d.ip).toFixed(2):'-',
-      hip: d.ip>0?(d.h/d.ip).toFixed(2):'-',
-      er: d.ip>0?String(d.er):'-',
-      kbb: (d.bb+d.hbp)>0?(d.k/(d.bb+d.hbp)).toFixed(2):(d.ip>0?'∞':'-'),
-      gb: (d.tb+d.h)>0?Math.round((d.gb+d.gbh)/(d.tb+d.h)*100)+'%':'-',
-    });
-    const pastTot=sumD(pastByInn);
-    const curTot=sumD(curByInn);
+    // LOGIC 純粋関数で集計・指標計算（DOM/グローバル不使用）
+    const pastByInn = LOGIC.accumulatePitcherInnData(prev3, pt.name);
+    const curByInn  = LOGIC.buildPitcherInnData(pt);
+    const pastTot   = LOGIC.sumPitcherByInn(pastByInn);
+    const curTot    = LOGIC.sumPitcherByInn(curByInn);
     const mRows=[{l:'P/IP',k:'pip'},{l:'WHIP+HBP',k:'whip'},{l:'H/IP',k:'hip'},{l:'ER',k:'er'},{l:'K/(BB+HBP)',k:'kbb'},{l:'GB%',k:'gb'}];
     const thS='padding:3px 5px;border:0.5px solid #ddd;text-align:center;font-size:10px;white-space:nowrap;';
     const tdLS='padding:3px 5px;background:#f5f5f5;border:0.5px solid #ddd;font-size:10px;font-weight:500;white-space:nowrap;position:sticky;left:0;';
@@ -1716,10 +1886,10 @@ function renderPitcherTable(){
     let a1rows='';
     (role==='member'?mRows.filter(m=>m.k==='pip'):mRows).forEach(m=>{
       a1rows+='<tr><td style="'+tdLS+'">'+m.l+'</td>';
-      INNINGS.forEach(i=>{a1rows+='<td style="'+tdGS+'">'+calcM(pastByInn[i])[m.k]+'</td>';});
-      a1rows+='<td style="'+tdGS+'font-weight:700;">'+calcM(pastTot)[m.k]+'</td>';
-      INNINGS.forEach(i=>{a1rows+='<td style="'+tdCS+'">'+calcM(curByInn[i])[m.k]+'</td>';});
-      a1rows+='<td style="'+tdCS+'font-weight:700;">'+calcM(curTot)[m.k]+'</td>';
+      INNINGS.forEach(i=>{a1rows+='<td style="'+tdGS+'">'+LOGIC.calcPitcherMetrics(pastByInn[i])[m.k]+'</td>';});
+      a1rows+='<td style="'+tdGS+'font-weight:700;">'+LOGIC.calcPitcherMetrics(pastTot)[m.k]+'</td>';
+      INNINGS.forEach(i=>{a1rows+='<td style="'+tdCS+'">'+LOGIC.calcPitcherMetrics(curByInn[i])[m.k]+'</td>';});
+      a1rows+='<td style="'+tdCS+'font-weight:700;">'+LOGIC.calcPitcherMetrics(curTot)[m.k]+'</td>';
       a1rows+='</tr>';
     });
     const area1Html='<div style="background:#fffbf0;border-left:3px solid #f9a825;border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:8px;">'
@@ -1899,8 +2069,8 @@ function renderScore(){
   const SCORE_INNINGS=['1','2','3','4','5','6','サドン'];
   const isManager=role==='manager';
 
-  const atomsTotal=sc.atoms.reduce((s,v)=>s+(parseInt(v)||0),0);
-  const oppTotal=sc.opp.reduce((s,v)=>s+(parseInt(v)||0),0);
+  const atomsTotal=LOGIC.sumInnings(sc.atoms);
+  const oppTotal  =LOGIC.sumInnings(sc.opp);
 
   let html=`<div style="margin-bottom:1rem;">`;
 
@@ -2458,8 +2628,8 @@ function exportScoreExcel(){
   const wsData=[['試合日','対戦相手','先攻後攻','1回','2回','3回','4回','5回','6回','サドン','アトムズ計','相手計','勝敗']];
   [...games].sort((a,b)=>a.date.localeCompare(b.date)).forEach(g=>{
     const sc=g.score||{batting:'先攻',atoms:[],opp:[]};
-    const aT=(sc.atoms||[]).reduce((s,v)=>s+(parseInt(v)||0),0);
-    const oT=(sc.opp||[]).reduce((s,v)=>s+(parseInt(v)||0),0);
+    const aT=LOGIC.sumInnings(sc.atoms);
+    const oT=LOGIC.sumInnings(sc.opp);
     const innings=[0,1,2,3,4,5,6].map(i=>sc.atoms[i]??'');
     wsData.push([g.date,g.opp,sc.batting||'先攻',...innings,aT,oT,aT>oT?'勝ち':aT<oT?'負け':'引き分け']);
   });
