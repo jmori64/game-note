@@ -352,30 +352,137 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-// ── 変数宣言（Firebase初期化より前に置いてTDZエラーを防ぐ） ──
-const POS_ORDER=['投','捕','一','二','三','遊','左','中','右'];
-const POS_OPTIONS=['投','捕','一','二','三','遊','左','中','右','DH'];
-const posCoords={'中':[250,50],'左':[100,100],'右':[400,100],'遊':[145,165],'二':[355,165],'投':[250,210],'三':[100,248],'一':[400,248],'捕':[250,305],'DH':null};
-let role='', currentGameIdx=-1, editPlayerIdx=-1;
-let currentGameId=null; // openGame時に記録（onSnapshotでのgameId再検索用）
-let fieldSelected=null;
-let pinDigits=[];
-const HASH_MANAGER='b1b5efd1a6cb804d54dd3d7c418a71e8a4153351b7e54b8ccafb3e6a746d0e69';
-let pinDigitsStaff=[];
-const HASH_STAFF='3378fd1b3e3d336695ad764a3c3675c36cd6474465122e332f8b1ff53b493dd1';
-let pinDigitsCoach=[];
-const HASH_COACH='91a73fd806ab2c005c13b4dc19130a884e909dea3f72d46e30266fe1a1f588d8';
-const DELETE_PIN='920'; // 削除確認ダイアログ用PIN（マジックナンバー排除）
-let numpadTarget={pitcherIdx:null,row:null,inning:null};
-let numpadVal='';
-const PITCHER_ROWS=['球数','投球回','与四球','死球','奪三振','被安打','自責点','ゴロ','ゴロ安打','全打球'];
-const INNINGS=[1,2,3,4,5,6,7];
-let roster=[];
-let games=[];
-let dataVersion=0;
-let currentGameComments=[];
-let commentsUnsubscribe=null;
-let _dataLoaded=false; // Firestoreからデータを受け取るまでtrueにならない（空データ保存防止）
+// ══════════════════════════════════════════════════════════════════
+// CONSTANTS — マジックナンバー・設定値の一元管理
+// ══════════════════════════════════════════════════════════════════
+const CONSTANTS = Object.freeze({
+  // 認証・PIN ハッシュ (SHA-256)
+  HASH_MANAGER: 'b1b5efd1a6cb804d54dd3d7c418a71e8a4153351b7e54b8ccafb3e6a746d0e69',
+  HASH_STAFF:   '3378fd1b3e3d336695ad764a3c3675c36cd6474465122e332f8b1ff53b493dd1',
+  HASH_COACH:   '91a73fd806ab2c005c13b4dc19130a884e909dea3f72d46e30266fe1a1f588d8',
+  // PIN 桁数
+  PIN_LEN_MANAGER: 4,
+  PIN_LEN_STAFF:   6,
+  PIN_LEN_MEMBER:  3,
+  /** エラー表示後にPINをクリアするまでの時間 (ms) */
+  PIN_ERROR_CLEAR_MS: 900,
+  /** 削除操作の最終確認PIN */
+  DELETE_PIN: '920',
+  // 保存制御
+  /** Firestoreへの書き込みデバウンス時間 (ms) */
+  SAVE_DEBOUNCE_MS: 800,
+  /** _savePending デッドロック強制解除タイムアウト (ms) */
+  SAVE_PENDING_TIMEOUT_MS: 30000,
+  /** 保存完了ステータス表示の自動消去時間 (ms) */
+  SAVE_STATUS_CLEAR_MS: 2000,
+  // UI / タイマー
+  /** カウントダウンを赤表示に切り替える残り秒数 */
+  COUNTDOWN_WARN_SEC: 600,
+  /** 試合時間のデフォルト値 (分) */
+  DEFAULT_GAME_DURATION: 80,
+});
+
+// ══════════════════════════════════════════════════════════════════
+// JSDoc 型定義
+// ══════════════════════════════════════════════════════════════════
+
+/**
+ * アプリのロール種別
+ * @typedef {'manager'|'staff'|'member'|''} Role
+ */
+
+/**
+ * 選手マスタ（roster 配列の要素）
+ * @typedef {Object} Player
+ * @property {string} name      - 選手名
+ * @property {string} num       - 背番号
+ * @property {string} [stamenPos] - スタメンポジション（守備位置）
+ */
+
+/**
+ * 打順エントリ（game.order 配列の要素）
+ * @typedef {Object} OrderEntry
+ * @property {string} name - 選手名
+ * @property {string} pos  - 打順内ポジション
+ */
+
+/**
+ * スコアデータ
+ * @typedef {Object} ScoreData
+ * @property {'先攻'|'後攻'} batting           - アトムズの先攻・後攻
+ * @property {Array<number|undefined>} atoms   - アトムズのイニング別得点
+ * @property {Array<number|undefined>} opp     - 相手のイニング別得点
+ * @property {string}  [startTime]  - 開始時刻 (HH:MM)
+ * @property {string}  [endTime]    - 終了予定時刻 (HH:MM)
+ * @property {number}  [duration]   - 試合時間（分）
+ */
+
+/**
+ * 投手記録（game.pitchers 配列の要素）
+ * @typedef {Object} PitcherData
+ * @property {string} name  - 投手名
+ * @property {string} [num] - 背番号
+ * @property {Object.<string, Object.<number, number|undefined>>} data
+ *   - 行キー（球数など）× イニング番号 の入力値マップ
+ */
+
+/**
+ * 試合データ（games 配列の要素）
+ * @typedef {Object} Game
+ * @property {string}  gameId   - ユニークID（generateId() で生成）
+ * @property {string}  date     - 試合日 (YYYY-MM-DD)
+ * @property {string}  opp      - 対戦相手チーム名
+ * @property {string}  [category] - カテゴリ（大会名など）
+ * @property {string}  [venue]    - 会場名
+ * @property {string}  [result]   - 結果メモ
+ * @property {OrderEntry[]}  order    - 打順リスト（最大9名）
+ * @property {PitcherData[]} pitchers - 投手記録リスト
+ * @property {ScoreData}     [score]  - スコアデータ
+ * @property {Object.<string, 'absent'|'substituted'>} [playerStatus]
+ *   - 選手ステータスマップ（キー: 選手名）
+ */
+
+/**
+ * アプリ状態（グローバル変数群の型注釈用）
+ * @typedef {Object} AppState
+ * @property {Role}         role           - 現在のロール
+ * @property {number}       currentGameIdx - 開いている試合のインデックス（-1=一覧）
+ * @property {string|null}  currentGameId  - 開いている試合のgameId（onSnapshot再検索用）
+ * @property {number}       dataVersion    - Firestoreのデータバージョン（楽観的ロック用）
+ * @property {boolean}      _dataLoaded    - Firestoreからデータ受信済みフラグ
+ * @property {boolean}      _savePending   - 保存処理中フラグ（onSnapshot上書き防止）
+ */
+
+// ══════════════════════════════════════════════════════════════════
+// 変数宣言（Firebase初期化より前に置いてTDZエラーを防ぐ）
+// ══════════════════════════════════════════════════════════════════
+const POS_ORDER  = ['投','捕','一','二','三','遊','左','中','右'];
+const POS_OPTIONS= ['投','捕','一','二','三','遊','左','中','右','DH'];
+const posCoords  = {'中':[250,50],'左':[100,100],'右':[400,100],'遊':[145,165],'二':[355,165],'投':[250,210],'三':[100,248],'一':[400,248],'捕':[250,305],'DH':null};
+const PITCHER_ROWS = ['球数','投球回','与四球','死球','奪三振','被安打','自責点','ゴロ','ゴロ安打','全打球'];
+const INNINGS      = [1,2,3,4,5,6,7];
+
+/** @type {Role} */
+let role = '';
+let currentGameIdx = -1;
+let editPlayerIdx  = -1;
+/** @type {string|null} openGame時に記録（onSnapshotでのgameId再検索用） */
+let currentGameId  = null;
+let fieldSelected  = null;
+let pinDigits      = [];
+let pinDigitsStaff = [];
+let pinDigitsCoach = [];
+let numpadTarget   = {pitcherIdx:null, row:null, inning:null};
+let numpadVal      = '';
+/** @type {Player[]} */
+let roster = [];
+/** @type {Game[]} */
+let games  = [];
+let dataVersion         = 0;
+let currentGameComments = [];
+let commentsUnsubscribe = null;
+/** Firestoreからデータを受け取るまでtrueにならない（空データ保存防止） */
+let _dataLoaded = false;
 
 // ── Firebase 初期化（SDK未ロード時もスクリプト全体がクラッシュしないようtry-catchで保護） ──
 const firebaseConfig = {
@@ -396,17 +503,32 @@ try{
 }catch(e){ console.warn('Firebase初期化失敗（SDKロード未完了の可能性）:',e); }
 
 // ── GA4カスタムイベント送信 ──
+/**
+ * GA4カスタムイベントを送信する
+ * @param {string} name - イベント名
+ * @param {Object} [params] - イベントパラメータ
+ * @returns {void}
+ */
 function logEvent(name, params){
   try{ analytics.logEvent(name, params||{}); }catch(e){}
 }
 
 document.addEventListener('DOMContentLoaded', loadData);
 
+/**
+ * ユニークIDを生成する（タイムスタンプ + ランダム文字列）
+ * @returns {string} ユニークID文字列
+ */
 function generateId(){
   return Date.now().toString(36)+Math.random().toString(36).substr(2,9);
 }
 
 // ── SHA-256 ──
+/**
+ * 文字列の SHA-256 ハッシュを計算する
+ * @param {string} str - ハッシュ化する文字列
+ * @returns {Promise<string>} 16進数ハッシュ文字列
+ */
 async function sha256(str){
   const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
@@ -423,7 +545,7 @@ function hidePin(){
   document.getElementById('pin-screen').style.display='none';
   showAllRoleBtns();
 }
-function pinInput(n){if(pinDigits.length>=4)return;pinDigits.push(n);updatePinDisplay();if(pinDigits.length===4)checkPin();}
+function pinInput(n){if(pinDigits.length>=CONSTANTS.PIN_LEN_MANAGER)return;pinDigits.push(n);updatePinDisplay();if(pinDigits.length===CONSTANTS.PIN_LEN_MANAGER)checkPin();}
 function pinBack(){pinDigits.pop();updatePinDisplay();document.getElementById('pin-error').style.display='none';}
 function pinClear(){pinDigits=[];updatePinDisplay();document.getElementById('pin-error').style.display='none';}
 function updatePinDisplay(){
@@ -431,8 +553,8 @@ function updatePinDisplay(){
 }
 async function checkPin(){
   const h=await sha256(pinDigits.join(''));
-  if(h===HASH_MANAGER){document.getElementById('pin-screen').style.display='none';doLogin('manager');}
-  else{recordLoginError('manager');document.getElementById('pin-error').style.display='block';setTimeout(()=>{pinDigits=[];updatePinDisplay();document.getElementById('pin-error').style.display='none';},900);}
+  if(h===CONSTANTS.HASH_MANAGER){document.getElementById('pin-screen').style.display='none';doLogin('manager');}
+  else{recordLoginError('manager');document.getElementById('pin-error').style.display='block';setTimeout(()=>{pinDigits=[];updatePinDisplay();document.getElementById('pin-error').style.display='none';},CONSTANTS.PIN_ERROR_CLEAR_MS);}
 }
 
 function showPinStaff(){
@@ -445,7 +567,7 @@ function hidePinStaff(){
   document.getElementById('pin-screen-staff').style.display='none';
   showAllRoleBtns();
 }
-function pinInputStaff(n){if(pinDigitsStaff.length>=6)return;pinDigitsStaff.push(n);updatePinDisplayStaff();if(pinDigitsStaff.length===6)checkPinStaff();}
+function pinInputStaff(n){if(pinDigitsStaff.length>=CONSTANTS.PIN_LEN_STAFF)return;pinDigitsStaff.push(n);updatePinDisplayStaff();if(pinDigitsStaff.length===CONSTANTS.PIN_LEN_STAFF)checkPinStaff();}
 function pinBackStaff(){pinDigitsStaff.pop();updatePinDisplayStaff();document.getElementById('pin-error-staff').style.display='none';}
 function pinClearStaff(){pinDigitsStaff=[];updatePinDisplayStaff();document.getElementById('pin-error-staff').style.display='none';}
 function updatePinDisplayStaff(){
@@ -453,8 +575,8 @@ function updatePinDisplayStaff(){
 }
 async function checkPinStaff(){
   const h=await sha256(pinDigitsStaff.join(''));
-  if(h===HASH_STAFF){document.getElementById('pin-screen-staff').style.display='none';doLogin('staff');}
-  else{recordLoginError('staff');document.getElementById('pin-error-staff').style.display='block';setTimeout(()=>{pinDigitsStaff=[];updatePinDisplayStaff();document.getElementById('pin-error-staff').style.display='none';},900);}
+  if(h===CONSTANTS.HASH_STAFF){document.getElementById('pin-screen-staff').style.display='none';doLogin('staff');}
+  else{recordLoginError('staff');document.getElementById('pin-error-staff').style.display='block';setTimeout(()=>{pinDigitsStaff=[];updatePinDisplayStaff();document.getElementById('pin-error-staff').style.display='none';},CONSTANTS.PIN_ERROR_CLEAR_MS);}
 }
 
 function showPinCoach(){
@@ -477,7 +599,7 @@ function showAllRoleBtns(){
     document.getElementById(id).style.display='flex';
   });
 }
-function pinInputCoach(n){if(pinDigitsCoach.length>=3)return;pinDigitsCoach.push(n);updatePinDisplayCoach();if(pinDigitsCoach.length===3)checkPinCoach();}
+function pinInputCoach(n){if(pinDigitsCoach.length>=CONSTANTS.PIN_LEN_MEMBER)return;pinDigitsCoach.push(n);updatePinDisplayCoach();if(pinDigitsCoach.length===CONSTANTS.PIN_LEN_MEMBER)checkPinCoach();}
 function pinBackCoach(){pinDigitsCoach.pop();updatePinDisplayCoach();document.getElementById('pin-error-coach').style.display='none';}
 function pinClearCoach(){pinDigitsCoach=[];updatePinDisplayCoach();document.getElementById('pin-error-coach').style.display='none';}
 function updatePinDisplayCoach(){
@@ -485,8 +607,8 @@ function updatePinDisplayCoach(){
 }
 async function checkPinCoach(){
   const h=await sha256(pinDigitsCoach.join(''));
-  if(h===HASH_COACH){document.getElementById('pin-screen-coach').style.display='none';doLogin('member');}
-  else{recordLoginError('member');document.getElementById('pin-error-coach').style.display='block';setTimeout(()=>{pinDigitsCoach=[];updatePinDisplayCoach();document.getElementById('pin-error-coach').style.display='none';},900);}
+  if(h===CONSTANTS.HASH_COACH){document.getElementById('pin-screen-coach').style.display='none';doLogin('member');}
+  else{recordLoginError('member');document.getElementById('pin-error-coach').style.display='block';setTimeout(()=>{pinDigitsCoach=[];updatePinDisplayCoach();document.getElementById('pin-error-coach').style.display='none';},CONSTANTS.PIN_ERROR_CLEAR_MS);}
 }
 
 // ── ログインエラー集計（土〜月の週単位でFirestoreに記録）──
@@ -503,6 +625,11 @@ function getWeekendKey(){
   const monStr=mon.toISOString().split('T')[0];
   return{key:satStr,weekStart:satStr,weekEnd:monStr};
 }
+/**
+ * ログイン失敗をFirestoreに記録する（週単位で集計）
+ * @param {'manager'|'staff'|'member'} roleKey - 失敗したロール
+ * @returns {void}
+ */
 function recordLoginError(roleKey){
   try{
     const{key,weekStart,weekEnd}=getWeekendKey();
@@ -514,6 +641,11 @@ function recordLoginError(roleKey){
 }
 
 // ── LOGIN ──
+/**
+ * ログイン処理：ロールを設定しメイン画面へ遷移する
+ * @param {Role} r - ログインするロール
+ * @returns {void}
+ */
 function doLogin(r){
   role=r;
   logEvent('login',{role:r});
@@ -530,7 +662,7 @@ function doLogin(r){
   document.getElementById('btn-excel').style.display=role==='manager'?'':'none';
   document.getElementById('div-roster-add').style.display=role==='manager'?'block':'none';
   document.getElementById('div-roster-notice').style.display=role==='member'?'block':'none';
-  // 選手登録タブ：manager・staff は表示、coach は非表示
+  // 選手登録タブ：manager のみ表示（staff・member は非表示）
   document.getElementById('nav-roster-btn').style.display=role==='manager'?'':'none';
   renderGames();renderRoster();
   if(role==='member'){
@@ -550,6 +682,10 @@ function gotoPage(page,el){
 }
 
 // ── GAMES ──
+/**
+ * 試合一覧画面を描画する（日付降順にソートして表示）
+ * @returns {void}
+ */
 function renderGames(){
   const list=document.getElementById('game-list');
   const none=document.getElementById('no-games');
@@ -626,6 +762,11 @@ function renderGames(){
   });
 }
 
+/**
+ * 試合を削除する（2段階確認 + PIN認証）
+ * @param {number} idx - 削除する試合の配列インデックス
+ * @returns {void}
+ */
 function deleteGame(idx){
   if(idx<0||idx>=games.length) return;
   const g=games[idx];
@@ -651,6 +792,10 @@ function openCopyGameModal(idx){
   document.getElementById('gc-opp').value=games[idx].opp;
   openModal('mo-game-copy');
 }
+/**
+ * 既存試合をコピーして新しい試合を作成する（スコア・投手記録はリセット、打順はコピー）
+ * @returns {void}
+ */
 function saveCopyGame(){
   const date=document.getElementById('gc-date').value;
   const opp=document.getElementById('gc-opp').value.trim();
@@ -694,17 +839,25 @@ function saveEditGame(){
   saveData();
 }
 
+/**
+ * 新規試合を作成して games 配列に追加し保存する
+ * @returns {void}
+ */
 function saveGame(){
   const date=document.getElementById('g-date').value;
   const opp=document.getElementById('g-opp').value.trim();
   const category=document.getElementById('g-category').value;
   const venue=document.getElementById('g-venue').value.trim();
   if(!date||!opp){alert('日付と対戦相手を入力してください');return;}
-  games.push({gameId:generateId(),date,opp,category,venue,result:'',order:[],pitchers:[],score:{batting:'先攻',atoms:[],opp:[],startTime:'',duration:80},comments:[]});
+  games.push({gameId:generateId(),date,opp,category,venue,result:'',order:[],pitchers:[],score:{batting:'先攻',atoms:[],opp:[],startTime:'',duration:CONSTANTS.DEFAULT_GAME_DURATION},comments:[]});
   closeModal('mo-game');renderGames();saveData();
 }
 
 // ── ROSTER ──
+/**
+ * 選手登録画面を描画する
+ * @returns {void}
+ */
 function renderRoster(){
   const list=document.getElementById('roster-list');
   if(roster.length===0){list.innerHTML='<p style="font-size:13px;color:#888;padding:.5rem 0;">選手が登録されていません</p>';return;}
@@ -749,6 +902,12 @@ function renderRoster(){
   });
 }
 
+/**
+ * 選手の表示順を1つ上下に移動する
+ * @param {number}   idx - 移動する選手のインデックス
+ * @param {1|-1}     dir - 移動方向（-1=上, 1=下）
+ * @returns {void}
+ */
 function moveRoster(idx, dir){
   const newIdx=idx+dir;
   if(newIdx<0||newIdx>=roster.length) return;
@@ -764,6 +923,10 @@ function openPlayerModal(idx){
   else{document.getElementById('mp-name').value=roster[idx].name;document.getElementById('mp-num').value=roster[idx].num;document.getElementById('mp-stamen-pos').value=roster[idx].stamenPos||'';}
   openModal('mo-player');
 }
+/**
+ * 選手を新規追加または編集して保存する
+ * @returns {void}
+ */
 function savePlayer(){
   const name=document.getElementById('mp-name').value.trim();
   const num=document.getElementById('mp-num').value.trim();
@@ -773,6 +936,11 @@ function savePlayer(){
   else roster[editPlayerIdx]={...roster[editPlayerIdx],name,num,stamenPos};
   closeModal('mo-player');renderRoster();saveData();
 }
+/**
+ * 選手を削除する（確認ダイアログあり）
+ * @param {number} idx - 削除する選手のインデックス
+ * @returns {void}
+ */
 function deletePlayer(idx){
   const p=roster[idx];
   const overlay=document.createElement('div');
@@ -798,6 +966,11 @@ function deletePlayer(idx){
 }
 
 // ── OPEN GAME ──
+/**
+ * POS_ORDER の順に roster からスタメンを自動配置する（打順が空の場合のみ使用）
+ * @param {number} gameIdx - 対象試合の配列インデックス
+ * @returns {void}
+ */
 function autoFillOrder(gameIdx){
   const g=games[gameIdx];
   const starters=[];
@@ -807,8 +980,15 @@ function autoFillOrder(gameIdx){
   });
   g.order=starters.slice(0,9);
 }
+/**
+ * 試合詳細画面を開く（選択状態リセット・コメントリスナー設定を含む）
+ * @param {number} idx - 開く試合の配列インデックス
+ * @returns {void}
+ */
 function openGame(idx){
-  currentGameIdx=idx;fieldSelected=null;
+  currentGameIdx=idx;
+  // 選択状態を全リセット（前の試合の残留選択を防ぐ）
+  fieldSelected=null;orderSelected=null;benchSelected=null;fieldBenchSelected=null;
   currentGameId=games[idx]?games[idx].gameId||null:null; // gameId再検索のために記録
   const _g=games[idx];
   logEvent('game_open',{role,game:`${_g.date} vs ${_g.opp}`});
@@ -864,8 +1044,13 @@ function openGame(idx){
   if(g.order.length===0&&role==='manager') autoFillOrder(idx);
   renderOrder();renderField();
 }
+/**
+ * 試合一覧画面へ戻る（選択状態・タイマー・コメントリスナーをクリア）
+ * @returns {void}
+ */
 function backToMain(){
-  fieldSelected=null;orderSelected=null;
+  fieldSelected=null;orderSelected=null;benchSelected=null;fieldBenchSelected=null;
+  if(_countdownTimer){clearInterval(_countdownTimer);_countdownTimer=null;}
   if(commentsUnsubscribe){commentsUnsubscribe();commentsUnsubscribe=null;}
   currentGameComments=[];
   document.getElementById('s-game').style.display='none';
@@ -887,6 +1072,10 @@ function switchGameTab(tab,el){
 }
 
 // ── ORDER ──
+/**
+ * 打順タブを描画する（ドラッグ&ドロップ対応・ベンチ欄を含む）
+ * @returns {void}
+ */
 function renderOrder(){
   const g=games[currentGameIdx];
   const list=document.getElementById('order-list');
@@ -942,6 +1131,12 @@ function onDrop(e){
   renderOrder();renderField();saveData();
 }
 function onDragEnd(){this.classList.remove('dragging');dragSrcIdx=null;}
+/**
+ * 打順エントリのポジションを変更して保存する
+ * @param {number} idx    - 打順インデックス
+ * @param {string} newPos - 新しいポジション文字列
+ * @returns {void}
+ */
 function changePos(idx,newPos){
   const g=games[currentGameIdx];
   if(!g||!g.order[idx]) return;
@@ -959,6 +1154,10 @@ function updateOoPosPreview(){
   const p=roster[pidx];
   document.getElementById('oo-pos-preview').textContent=p?'ポジション: '+(p.stamenPos||'-'):'';
 }
+/**
+ * 打順追加モーダルから選手を打順に追加する（ポジション重複チェックあり）
+ * @returns {void}
+ */
 function saveOrderEntry(){
   const g=games[currentGameIdx];
   if(!g) return;
@@ -975,6 +1174,10 @@ function saveOrderEntry(){
 }
 
 // ── FIELD ──
+/**
+ * フィールドタブ（SVGグラウンド図）を描画する
+ * @returns {void}
+ */
 function renderField(){
   const g=games[currentGameIdx];
   const gr=document.getElementById('field-players-g');
@@ -1047,6 +1250,12 @@ let orderSelected=null;
 let benchSelected=null;      // 打順タブ：ベンチ選手を先に選択した場合の選手名
 let fieldBenchSelected=null; // フィールドタブ：ベンチ選手を先に選択した場合の選手名
 
+/**
+ * 打順を1つ上下に移動する
+ * @param {number} idx - 移動する打順インデックス
+ * @param {1|-1}   dir - 移動方向（-1=上, 1=下）
+ * @returns {void}
+ */
 function moveOrder(idx,dir){
   const g=games[currentGameIdx];
   const newIdx=idx+dir;
@@ -1057,6 +1266,11 @@ function moveOrder(idx,dir){
   renderOrder();renderField();saveData();
 }
 
+/**
+ * 打順タブ上の選手名クリック処理（2タップ入れ替え or ベンチ→打順交換）
+ * @param {number} idx - クリックされた打順インデックス
+ * @returns {void}
+ */
 function onOrderPlayerClick(idx){
   const g=games[currentGameIdx];
   if(benchSelected!==null){
@@ -1083,6 +1297,11 @@ function onOrderPlayerClick(idx){
   }
 }
 
+/**
+ * ベンチエリアを描画する（出場選手 / ベンチ / 欠席・交代済 の3セクション）
+ * @param {'order-bench'|'field-bench'} containerId - 描画先コンテナのDOM ID
+ * @returns {void}
+ */
 function renderBench(containerId){
   const wrap=document.getElementById(containerId);
   if(!wrap) return;
@@ -1247,6 +1466,12 @@ function renderBench(containerId){
 }
 
 
+/**
+ * フィールドタブ：打順スロットとベンチ選手を直接入れ替える（ポジションは引き継ぎ）
+ * @param {number} orderIdx  - 打順インデックス
+ * @param {string} benchName - ベンチ選手名
+ * @returns {void}
+ */
 function swapWithBenchDirect(orderIdx, benchName){
   const g=games[currentGameIdx];
   const benchPlayer=roster.find(p=>p.name===benchName);
@@ -1264,6 +1489,12 @@ function selectOrderPlayer(idx, name){
   swapOrderWithBench(orderSelected, name);
 }
 
+/**
+ * 打順タブ：打順選手とベンチ選手を入れ替える（ポジションは現スロットを引き継ぎ）
+ * @param {number} orderIdx  - 打順インデックス
+ * @param {string} benchName - ベンチ選手名
+ * @returns {void}
+ */
 function swapOrderWithBench(orderIdx, benchName){
   const g=games[currentGameIdx];
   const benchPlayer=roster.find(p=>p.name===benchName);
@@ -1276,6 +1507,12 @@ function swapOrderWithBench(orderIdx, benchName){
   renderOrder();renderField();saveData();
 }
 
+/**
+ * 選手を打順から外して「欠席」または「交代済」ステータスに移動する
+ * @param {string} playerName            - 対象選手名
+ * @param {'absent'|'substituted'} status - 設定するステータス
+ * @returns {void}
+ */
 function movePlayerToStatus(playerName, status){
   const g=games[currentGameIdx];
   if(!g) return;
@@ -1291,6 +1528,11 @@ function movePlayerToStatus(playerName, status){
   renderOrder();renderField();saveData();
 }
 
+/**
+ * 「欠席」「交代済」の選手をベンチに戻す
+ * @param {string} playerName - 対象選手名
+ * @returns {void}
+ */
 function restorePlayerFromStatus(playerName){
   const g=games[currentGameIdx];
   if(!g||!g.playerStatus) return;
@@ -1302,6 +1544,11 @@ function restorePlayerFromStatus(playerName){
   renderOrder();renderField();saveData();
 }
 
+/**
+ * フィールドタブ上の選手クリック処理（2タップポジション入れ替え or ベンチ→フィールド配置）
+ * @param {number} idx - クリックされた打順インデックス
+ * @returns {void}
+ */
 function onFieldPlayerClick(idx){
   if(fieldBenchSelected!==null){
     // ベンチ選手が先に選択 → そのフィールドスロットにベンチ選手を配置
@@ -1342,6 +1589,10 @@ function openPitcherModal(){
   document.getElementById('pt-player').innerHTML=roster.map((p,i)=>`<option value="${i}">${p.num} ${p.name}</option>`).join('');
   openModal('mo-pitcher');
 }
+/**
+ * 投手追加モーダルから選手を投手記録に追加する
+ * @returns {void}
+ */
 function addPitcherRow(){
   const g=games[currentGameIdx];
   if(!g) return;
@@ -1353,6 +1604,10 @@ function addPitcherRow(){
   g.pitchers.push({name:p.name,num:p.num,data:{'球数':{},'与四球':{},'奪三振':{},'被安打':{},'投球回':{}}});
   closeModal('mo-pitcher');renderPitcherTable();saveData();
 }
+/**
+ * 投手タブを描画する（実績テーブル・指標・基礎数値を含む）
+ * @returns {void}
+ */
 function renderPitcherTable(){
   const g=games[currentGameIdx];
   const wrap=document.getElementById('pitcher-table-wrap');
@@ -1619,6 +1874,11 @@ function numpadConfirm(){
   g.pitchers[pitcherIdx].data[row][inning]=numpadVal===''?undefined:parseInt(numpadVal);
   closeModal('mo-numpad');renderPitcherTable();saveData();
 }
+/**
+ * 投手記録を削除する（2段階確認 + PIN認証）
+ * @param {number} idx - 削除する投手の pitchers 配列インデックス
+ * @returns {void}
+ */
 function deletePitcher(idx){
   const g=games[currentGameIdx];
   if(!g||!g.pitchers||idx<0||idx>=g.pitchers.length) return;
@@ -1626,6 +1886,10 @@ function deletePitcher(idx){
     games[currentGameIdx].pitchers.splice(idx,1);renderPitcherTable();saveData();
   });
 }
+/**
+ * スコアタブを描画する（先攻・後攻切り替え、時刻設定、カウントダウンを含む）
+ * @returns {void}
+ */
 function renderScore(){
   const g=games[currentGameIdx];
   if(!g) return;
@@ -1651,7 +1915,7 @@ function renderScore(){
 
   // 開始時刻・試合時間・終了予定
   if(!sc.startTime) sc.startTime='';
-  if(!sc.duration) sc.duration=80;
+  if(!sc.duration) sc.duration=CONSTANTS.DEFAULT_GAME_DURATION;
   let endTimeStr='';
   if(sc.startTime){
     const [h,m]=sc.startTime.split(':').map(Number);
@@ -1728,6 +1992,12 @@ function renderScore(){
 }
 
 let scoreNumpadTarget={team:null,idx:null};
+/**
+ * スコア入力用テンキーモーダルを開く
+ * @param {'atoms'|'opp'} team - 入力対象チーム
+ * @param {number}        idx  - イニングインデックス（0始まり）
+ * @returns {void}
+ */
 function openScoreNumpad(team,idx){
   const g=games[currentGameIdx];
   scoreNumpadTarget={team,idx};
@@ -1741,6 +2011,12 @@ function openScoreNumpad(team,idx){
 }
 
 let _countdownTimer=null;
+/**
+ * 試合終了予定時刻までのカウントダウンを開始する（1秒更新）
+ * CONSTANTS.COUNTDOWN_WARN_SEC 秒以内になると赤色表示に切り替わる
+ * @param {string} endTimeStr - 終了予定時刻 (HH:MM 形式)
+ * @returns {void}
+ */
 function startCountdown(endTimeStr){
   if(_countdownTimer) clearInterval(_countdownTimer);
   if(!endTimeStr) return;
@@ -1760,8 +2036,8 @@ function startCountdown(endTimeStr){
     const ss=String(absSec%60).padStart(2,'0');
     if(diffSec>0){
       el.textContent=mm+':'+ss;
-      el.style.color=diffSec<=600?'#a32d2d':'#185fa5';
-      el.style.background=diffSec<=600?'#fff0f0':'#f0f7ff';
+      el.style.color=diffSec<=CONSTANTS.COUNTDOWN_WARN_SEC?'#a32d2d':'#185fa5';
+      el.style.background=diffSec<=CONSTANTS.COUNTDOWN_WARN_SEC?'#fff0f0':'#f0f7ff';
     } else if(diffSec===0){
       el.textContent='00:00';
       el.style.color='#a32d2d';
@@ -1777,14 +2053,25 @@ function startCountdown(endTimeStr){
   _countdownTimer=setInterval(update,1000);
 }
 
+/**
+ * スコアの時刻・試合時間フィールドを更新して保存する
+ * @param {'startTime'|'endTime'|'duration'} key - 更新するフィールドキー
+ * @param {string} val - 新しい値（duration の場合は数値文字列）
+ * @returns {void}
+ */
 function setScoreTime(key, val){
   const g=games[currentGameIdx];
   if(!g) return;
-  if(!g.score) g.score={batting:'先攻',atoms:[],opp:[],startTime:'',duration:90};
+  if(!g.score) g.score={batting:'先攻',atoms:[],opp:[],startTime:'',duration:CONSTANTS.DEFAULT_GAME_DURATION};
   g.score[key]=key==='duration'?parseInt(val):val;
   saveData();renderScore();
 }
 
+/**
+ * アトムズの先攻・後攻を設定して保存する
+ * @param {'先攻'|'後攻'} val - 先攻または後攻
+ * @returns {void}
+ */
 function setScoreBatting(val){
   const g=games[currentGameIdx];
   if(!g) return;
@@ -1793,6 +2080,10 @@ function setScoreBatting(val){
   saveData();renderScore();
 }
 
+/**
+ * コメントタブを描画する（投稿フォーム + コメント一覧）
+ * @returns {void}
+ */
 function renderComments(){
   const g=games[currentGameIdx];
   if(!g) return;
@@ -1874,6 +2165,10 @@ function setCommentType(type){
   if(tg) tg.style.cssText='flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;font-size:14px;cursor:pointer;background:'+(type==='Good'?'#dcfce7;color:#166534;font-weight:500;':'#fff;');
   if(ti) ti.style.cssText='flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;font-size:14px;cursor:pointer;background:'+(type==='Improve'?'#dbeafe;color:#1e40af;font-weight:500;':'#fff;');
 }
+/**
+ * コメントをFirestoreに投稿し、宛先選手をリセットする
+ * @returns {void}
+ */
 function addComment(){
   const g=games[currentGameIdx];
   const pidx=document.getElementById('comment-player').value;
@@ -1912,6 +2207,11 @@ function addComment(){
   if(cpEl) cpEl.value='';
 }
 
+/**
+ * コメントを編集するモーダルを開く（manager のみ）
+ * @param {string} commentId - 編集対象のFirestoreドキュメントID
+ * @returns {void}
+ */
 function editComment(commentId){
   const c=currentGameComments.find(x=>x.id===commentId);
   if(!c) return;
@@ -1967,12 +2267,22 @@ function editComment(commentId){
   });
 }
 
+/**
+ * コメントを削除する（2段階確認 + PIN認証）
+ * @param {string} commentId - 削除対象のFirestoreドキュメントID
+ * @returns {void}
+ */
 function deleteComment(commentId){
   confirmDelete('コメントを削除','このコメントを削除しますか？',()=>{
     db.collection('comments').doc(commentId).delete()
       .catch(err=>console.error('コメント削除エラー:',err));
   });
 }
+/**
+ * 特定選手への全コメントをFirestoreから取得してボトムシートで表示する
+ * @param {string} playerName - 表示対象の選手名
+ * @returns {void}
+ */
 function showPlayerComments(playerName){
   // Firestoreからその選手への全コメントを取得（試合をまたいで検索）
   const ov=document.createElement('div');
@@ -2008,6 +2318,13 @@ function showPlayerComments(playerName){
   }).catch(err=>{console.error('選手コメント取得エラー:',err);});
 }
 
+/**
+ * 2段階確認 + PIN認証の削除ダイアログを表示し、承認時にコールバックを実行する
+ * @param {string}   title     - ダイアログタイトル
+ * @param {string}   desc      - 確認メッセージ
+ * @param {()=>void} onConfirm - PIN認証成功時に実行するコールバック
+ * @returns {void}
+ */
 function confirmDelete(title, desc, onConfirm){
   function makeOv(bg){const ov=document.createElement('div');ov.style.cssText=`position:fixed;inset:0;background:${bg};display:flex;align-items:center;justify-content:center;z-index:300;`;return ov;}
   function makeBtn(t,s){const b=document.createElement('button');b.style.cssText=s;b.textContent=t;return b;}
@@ -2051,7 +2368,7 @@ function confirmDelete(title, desc, onConfirm){
       b3n.addEventListener('click',()=>ov3.remove());
       b3y.addEventListener('click',()=>{
         const pin=document.getElementById('del-pin-input').value;
-        if(pin===DELETE_PIN){ov3.remove();onConfirm();}
+        if(pin===CONSTANTS.DELETE_PIN){ov3.remove();onConfirm();}
         else{document.getElementById('del-pin-err').textContent='暗証番号が違います';}
       });
     });
@@ -2080,6 +2397,10 @@ function openExportMenu(){
   box.querySelector('#exp-cancel').addEventListener('click',()=>ov.remove());
 }
 
+/**
+ * 全試合の投手記録をExcelファイルにエクスポートする（試合ごとにシートを作成）
+ * @returns {void}
+ */
 function exportPitcherExcel(){
   const wb=XLSX.utils.book_new();
   const INNINGS=[1,2,3,4,5,6,7];
@@ -2107,6 +2428,10 @@ function exportPitcherExcel(){
   XLSX.writeFile(wb,'投手記録.xlsx');
 }
 
+/**
+ * Firestoreの全コメントをExcelファイルにエクスポートする（選手×試合の一覧）
+ * @returns {void}
+ */
 function exportCommentExcel(){
   // Firestoreから全コメントを取得してExcelに出力
   db.collection('comments').get().then(snap=>{
@@ -2124,6 +2449,10 @@ function exportCommentExcel(){
   }).catch(err=>{console.error('コメントExportエラー:',err);alert('エクスポートに失敗しました');});
 }
 
+/**
+ * 全試合のスコアをExcelファイルにエクスポートする（試合一覧、勝敗付き）
+ * @returns {void}
+ */
 function exportScoreExcel(){
   const wb=XLSX.utils.book_new();
   const wsData=[['試合日','対戦相手','先攻後攻','1回','2回','3回','4回','5回','6回','サドン','アトムズ計','相手計','勝敗']];
@@ -2143,6 +2472,14 @@ function exportScoreExcel(){
 
 // ── 保存制御 ──
 let _saveStatusTimer=null;
+/**
+ * 保存ステータスバーにメッセージを表示する
+ * @param {string} text       - 表示テキスト
+ * @param {string} color      - 文字色 (CSS色)
+ * @param {string} bg         - 背景色 (CSS色)
+ * @param {number} [autoClearMs=0] - 自動消去までの時間(ms)。0=消去しない
+ * @returns {void}
+ */
 function _showSaveStatus(text, color, bg, autoClearMs=0){
   const el=document.getElementById('save-status');
   if(!el) return;
@@ -2167,6 +2504,11 @@ function _releaseSavePending(){
   _savePendingTimeout=null;
 }
 
+/**
+ * データをローカルストレージに即時書き込み、Firestoreへのデバウンス保存をスケジュールする
+ * CONSTANTS.SAVE_DEBOUNCE_MS ms 以内の連続呼び出しはまとめられる（偽CONFLICT防止）
+ * @returns {void}
+ */
 function saveData(){
   // Firestoreからデータをまだ受け取っていない場合は保存しない（空データ上書き防止）
   if(!_dataLoaded){ console.warn('データ未ロードのため保存スキップ'); return; }
@@ -2181,7 +2523,7 @@ function saveData(){
     console.warn('saveData: _savePending timeout - 強制解除');
     _savePending=false;
     _savePendingTimeout=null;
-  },30000);
+  },CONSTANTS.SAVE_PENDING_TIMEOUT_MS);
   // localStorageに即時保存（オフライン時のフォールバック）
   try{
     localStorage.setItem('atoms_roster',JSON.stringify(_pendingRoster));
@@ -2196,9 +2538,13 @@ function saveData(){
   _showSaveStatus('保存中…', '#555', '#f5f5f5');
   // Firestoreはデバウンス（800ms以内の連続保存をまとめて偽CONFLICT防止）
   clearTimeout(_saveTimer);
-  _saveTimer=setTimeout(_commitSave,800);
+  _saveTimer=setTimeout(_commitSave,CONSTANTS.SAVE_DEBOUNCE_MS);
 }
 
+/**
+ * Firestoreへのトランザクション保存を実行する（楽観的ロックによるCONFLICT検出あり）
+ * @returns {void}
+ */
 function _commitSave(){
   const rosterSnap=_pendingRoster;
   const gamesSnap=_pendingGames;
@@ -2225,7 +2571,7 @@ function _commitSave(){
     dataVersion=newVersion;
     _releaseSavePending();
     try{localStorage.removeItem('atoms_unsaved');}catch(e){}
-    _showSaveStatus('✓ 保存完了', '#166534', '#dcfce7', 2000); // 2秒後に消える
+    _showSaveStatus('✓ 保存完了', '#166634', '#dcfce7', CONSTANTS.SAVE_STATUS_CLEAR_MS);
   })
   .catch(e=>{
     _releaseSavePending();
@@ -2266,6 +2612,10 @@ window.addEventListener('beforeunload',()=>{
   }
 });
 
+/**
+ * roster + games データをJSONファイルとしてダウンロードする（バックアップ）
+ * @returns {void}
+ */
 function exportData(){
   const data={roster,games,exportedAt:new Date().toISOString()};
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
@@ -2278,6 +2628,11 @@ function exportData(){
   setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(a.href);},100);
 }
 
+/**
+ * JSONバックアップファイルを読み込み、roster + games を復元して保存する
+ * @param {Event} e - file input の change イベント
+ * @returns {void}
+ */
 function importData(e){
   const file=e.target.files[0];
   if(!file) return;
@@ -2301,6 +2656,12 @@ function importData(e){
   };
   reader.readAsText(file);
 }
+/**
+ * アプリ起動時にデータを読み込む
+ * ①localStorageから即時表示→②Firestoreのリアルタイムリスナーで同期
+ * 未保存データ（atoms_unsaved=true）を検出した場合は復元確認ダイアログを表示
+ * @returns {void}
+ */
 function loadData(){
   // まずlocalStorageから読み込み（即時表示用フォールバック）
   try{
