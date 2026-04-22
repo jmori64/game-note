@@ -357,6 +357,7 @@ const POS_ORDER=['投','捕','一','二','三','遊','左','中','右'];
 const POS_OPTIONS=['投','捕','一','二','三','遊','左','中','右','DH'];
 const posCoords={'中':[250,50],'左':[100,100],'右':[400,100],'遊':[145,165],'二':[355,165],'投':[250,210],'三':[100,248],'一':[400,248],'捕':[250,305],'DH':null};
 let role='', currentGameIdx=-1, editPlayerIdx=-1;
+let currentGameId=null; // openGame時に記録（onSnapshotでのgameId再検索用）
 let fieldSelected=null;
 let pinDigits=[];
 const HASH_MANAGER='b1b5efd1a6cb804d54dd3d7c418a71e8a4153351b7e54b8ccafb3e6a746d0e69';
@@ -364,6 +365,7 @@ let pinDigitsStaff=[];
 const HASH_STAFF='3378fd1b3e3d336695ad764a3c3675c36cd6474465122e332f8b1ff53b493dd1';
 let pinDigitsCoach=[];
 const HASH_COACH='91a73fd806ab2c005c13b4dc19130a884e909dea3f72d46e30266fe1a1f588d8';
+const DELETE_PIN='920'; // 削除確認ダイアログ用PIN（マジックナンバー排除）
 let numpadTarget={pitcherIdx:null,row:null,inning:null};
 let numpadVal='';
 const PITCHER_ROWS=['球数','投球回','与四球','死球','奪三振','被安打','自責点','ゴロ','ゴロ安打','全打球'];
@@ -807,6 +809,7 @@ function autoFillOrder(gameIdx){
 }
 function openGame(idx){
   currentGameIdx=idx;fieldSelected=null;
+  currentGameId=games[idx]?games[idx].gameId||null:null; // gameId再検索のために記録
   const _g=games[idx];
   logEvent('game_open',{role,game:`${_g.date} vs ${_g.opp}`});
   // 前のコメントリスナーを解除
@@ -1904,6 +1907,9 @@ function addComment(){
   if(ti) ti.style.cssText='flex:1;padding:8px;border-radius:8px;border:0.5px solid #ccc;font-size:14px;cursor:pointer;background:#fff;color:#1a1a1a;';
   // UIはonSnapshotが自動更新するため手動renderComments()不要
   document.getElementById('comment-text').value='';
+  // 誤投稿防止：宛先選手をリセット（投稿者は保持）
+  const cpEl=document.getElementById('comment-player');
+  if(cpEl) cpEl.value='';
 }
 
 function editComment(commentId){
@@ -2045,7 +2051,7 @@ function confirmDelete(title, desc, onConfirm){
       b3n.addEventListener('click',()=>ov3.remove());
       b3y.addEventListener('click',()=>{
         const pin=document.getElementById('del-pin-input').value;
-        if(pin==='920'){ov3.remove();onConfirm();}
+        if(pin===DELETE_PIN){ov3.remove();onConfirm();}
         else{document.getElementById('del-pin-err').textContent='暗証番号が違います';}
       });
     });
@@ -2349,8 +2355,15 @@ function loadData(){
         localStorage.setItem('atoms_roster',JSON.stringify(roster));
         localStorage.setItem('atoms_games',JSON.stringify(games));
       }catch(e){}
-      // currentGameIdx が範囲外になっていたらリセット
-      if(currentGameIdx>=games.length) currentGameIdx=-1;
+      // currentGameIdx が範囲外になっていたら gameId で再検索（他端末での試合削除に対応）
+      if(currentGameIdx>=games.length){
+        if(currentGameId){
+          const found=games.findIndex(g=>g.gameId===currentGameId);
+          currentGameIdx=found; // 見つからなければ -1（一覧に戻る）
+        } else {
+          currentGameIdx=-1;
+        }
+      }
       // すでにログイン済みならUIを更新
       if(role){renderGames();renderRoster();}
     }
