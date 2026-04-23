@@ -699,7 +699,9 @@ const LOGIC = Object.freeze({
   calcPitcherRowTotals(pt, rows) {
     const totals = {};
     rows.forEach(row => {
-      totals[row] = INNINGS.reduce((s, inn) => s + (parseInt(pt.data[row]?.[inn]) || 0), 0);
+      const isIP = row === '投球回';
+      const raw = INNINGS.reduce((s, inn) => s + (parseFloat(pt.data[row]?.[inn]) || 0), 0);
+      totals[row] = isIP ? Math.round(raw * 100) / 100 : Math.round(raw);
     });
     return totals;
   },
@@ -1843,36 +1845,8 @@ function renderPitcherTable(){
   g.pitchers.forEach((pt,pi)=>{
     const totals=LOGIC.calcPitcherRowTotals(pt, PITCHER_ROWS);
 
-    // 現在の試合より前の試合の累計
-    const prevGames2=games.filter(pg=>pg.date<g.date);
-    const ps={ip:0,bb:0,hbp:0,h:0,k:0,pitches:0,er:0,gb:0,gb_hit:0,total_batted:0,cnt:0};
-    prevGames2.forEach(pg=>{
-      if(!pg.pitchers) return;
-      const pp=pg.pitchers.find(p=>p.name===pt.name);
-      if(!pp||!pp.data) return;
-      ps.cnt++;
-      INNINGS.forEach(i=>{
-        ps.ip+=parseFloat(pp.data['投球回']?.[i])||0;
-        ps.bb+=parseInt(pp.data['与四球']?.[i])||0;
-        ps.hbp+=parseInt(pp.data['死球']?.[i])||0;
-        ps.h+=parseInt(pp.data['被安打']?.[i])||0;
-        ps.k+=parseInt(pp.data['奪三振']?.[i])||0;
-        ps.pitches+=parseInt(pp.data['球数']?.[i])||0;
-        ps.er+=parseInt(pp.data['自責点']?.[i])||0;
-        ps.gb+=parseInt(pp.data['ゴロ']?.[i])||0;
-        ps.gb_hit+=parseInt(pp.data['ゴロ安打']?.[i])||0;
-        ps.total_batted+=parseInt(pp.data['全打球']?.[i])||0;
-      });
-    });
-    const pWHIP=ps.ip>0?((ps.bb+ps.hbp+ps.h)/ps.ip).toFixed(2):'-';
-    const pKBB=(ps.bb+ps.hbp)>0?(ps.k/(ps.bb+ps.hbp)).toFixed(2):'∞';
-    const pPIP=ps.ip>0?Math.round(ps.pitches/ps.ip):'-';
-    const pHIP=ps.ip>0?(ps.h/ps.ip).toFixed(2):'-';
-    const pGBpct=(ps.total_batted+ps.h)>0?Math.round((ps.gb+ps.gb_hit)/(ps.total_batted+ps.h)*100):'-';
-    const pIP=Math.round(ps.ip*100)/100;
-
-    // エリア1：実績
-    const prev3=prevGames2.slice(-3);
+    // エリア1：実績（過去3試合 → LOGIC純粋関数で集計）
+    const prev3=games.filter(pg=>pg.date<g.date).slice(-3);
     // LOGIC 純粋関数で集計・指標計算（DOM/グローバル不使用）
     const pastByInn = LOGIC.accumulatePitcherInnData(prev3, pt.name);
     const curByInn  = LOGIC.buildPitcherInnData(pt);
@@ -2089,7 +2063,7 @@ function renderScore(){
   let endTimeStr='';
   if(sc.startTime){
     const [h,m]=sc.startTime.split(':').map(Number);
-    const endMin=h*60+m+parseInt(sc.duration||90);
+    const endMin=h*60+m+parseInt(sc.duration||CONSTANTS.DEFAULT_GAME_DURATION);
     endTimeStr=String(Math.floor(endMin/60)%24).padStart(2,'0')+':'+String(endMin%60).padStart(2,'0');
   }
   html+=`<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
@@ -2105,7 +2079,7 @@ function renderScore(){
         ? `<select id="score-duration" onchange="setScoreTime('duration',this.value)" style="padding:4px 8px;border:0.5px solid #ccc;border-radius:8px;font-size:14px;">
             ${[70,80,90].map(d=>`<option value="${d}" ${sc.duration==d?'selected':''}>${d}分</option>`).join('')}
           </select>`
-        : `<span style="font-size:14px;font-weight:500;">${sc.duration||90}分</span>`}
+        : `<span style="font-size:14px;font-weight:500;">${sc.duration||CONSTANTS.DEFAULT_GAME_DURATION}分</span>`}
     </div>
     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
       <span style="font-size:13px;color:#888;">終了予定</span>
@@ -2856,8 +2830,11 @@ function loadData(){
         if(hasUnsaved){
           let lsGames=[];
           try{ lsGames=JSON.parse(localStorage.getItem('atoms_games')||'[]'); }catch(e){}
-          if(lsGames.length>firestoreGames.length){
-            // localStorageの方が試合数が多い → 前回保存できなかったデータが残っている
+          const lsJson=JSON.stringify(lsGames);
+          const fsJson=JSON.stringify(firestoreGames);
+          if(lsGames.length>firestoreGames.length||(lsGames.length>0&&lsJson!==fsJson)){
+            // localStorageの方が新しい → 前回保存できなかったデータが残っている
+            // （試合数増加 OR 同数でも内容が異なる場合に検知）
             const msg='⚠️ 前回保存できなかったデータが見つかりました。\n\n'
               +'Firestore（クラウド）: '+firestoreGames.length+'試合\n'
               +'端末内（未送信）: '+lsGames.length+'試合\n\n'
