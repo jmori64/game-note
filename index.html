@@ -1876,9 +1876,9 @@ function renderPitcherTable(){
       +'<th colspan="'+(INNINGS.length+1)+'" style="'+thS+'background:#cfe2ff;">この試合</th>'
       +'</tr><tr>'
       +'<th style="'+thS+'background:#f5f5f5;position:sticky;left:0;"></th>'
-      +INNINGS.map(i=>'<th style="'+thS+'background:#fff3cd;">'+(i===7?'S':i)+'</th>').join('')
+      +INNINGS.map(i=>'<th style="'+thS+'background:#fff3cd;">'+(i===7?'T':i)+'</th>').join('')
       +'<th style="'+thS+'background:#fff3cd;">計</th>'
-      +INNINGS.map(i=>'<th style="'+thS+'background:#cfe2ff;">'+(i===7?'S':i)+'</th>').join('')
+      +INNINGS.map(i=>'<th style="'+thS+'background:#cfe2ff;">'+(i===7?'T':i)+'</th>').join('')
       +'<th style="'+thS+'background:#cfe2ff;">計</th>'
       +'</tr></thead>'
       +'<tbody>'+a1rows+'</tbody>'
@@ -1912,14 +1912,15 @@ function renderPitcherTable(){
       </div>
       ${role!=='member'?area1Html:''}
       ${role!=='member'?area2Html:''}
-      <div style="background:#f5f5f5;border-left:3px solid #999;border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:8px;">
-        <div style="font-weight:600;font-size:12px;color:#555;">③ 基礎数値（この試合）</div>
-      </div>
-      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-      <table style="border-collapse:collapse;font-size:12px;min-width:100%;border:0.5px solid #ddd;">
+      <div style="border-left:3px solid #999;border-radius:0 8px 8px 0;margin-bottom:8px;">
+        <div style="background:#f5f5f5;border-radius:0 8px 0 0;padding:8px 12px;">
+          <div style="font-weight:600;font-size:12px;color:#555;">③ 基礎数値（この試合）</div>
+        </div>
+        <div style="padding:8px 0 0 0;overflow-x:auto;-webkit-overflow-scrolling:touch;">
+        <table style="border-collapse:collapse;font-size:12px;min-width:100%;border:0.5px solid #ddd;">
         <thead><tr>
           <th style="padding:5px 6px;background:#f5f5f5;border:0.5px solid #ddd;text-align:left;min-width:52px;position:sticky;left:0;">項目</th>
-          ${INNINGS.map(i=>`<th style="padding:5px 8px;background:#f5f5f5;border:0.5px solid #ddd;text-align:center;min-width:36px;">${i===7?'S':i+'回'}</th>`).join('')}
+          ${INNINGS.map(i=>`<th style="padding:5px 8px;background:#f5f5f5;border:0.5px solid #ddd;text-align:center;min-width:36px;">${i===7?'T':i+'回'}</th>`).join('')}
           <th style="padding:5px 8px;background:#eaf3de;border:0.5px solid #ddd;text-align:center;min-width:36px;font-weight:500;">計</th>
         </tr></thead>
         <tbody>${(role==='member'?['球数']:PITCHER_ROWS).map(row=>{
@@ -1945,7 +1946,7 @@ function renderPitcherTable(){
           </tr>`;
         }).join('')}
         </tbody>
-      </table></div></div>`;
+      </table></div></div></div>`;
   });
   wrap.innerHTML=html;
 }
@@ -1954,7 +1955,7 @@ function openIPPicker(pi, inn){
   ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:300;';
   const box=document.createElement('div');
   box.style.cssText='background:#fff;border-radius:16px;padding:1.5rem;width:280px;max-width:90%;';
-  const inn_labels=['1回','2回','3回','4回','5回','6回','サドン'];
+  const inn_labels=['1回','2回','3回','4回','5回','6回','TB'];
   const inn_label=inn_labels[inn-1]||inn+'回';
   const cur=games[currentGameIdx].pitchers[pi].data['投球回']?.[inn];
   const opts=[{val:0,label:'0'},{val:0.33,label:'1/3'},{val:0.67,label:'2/3'},{val:1,label:'1'}];
@@ -2042,7 +2043,7 @@ function renderScore(){
   if(!g.score) g.score={batting:'先攻',atoms:[],opp:[]};
   const sc=g.score;
   const wrap=document.getElementById('score-content');
-  const SCORE_INNINGS=['1','2','3','4','5','6','サドン'];
+  const SCORE_INNINGS=['1','2','3','4','5','6','T'];
   const isManager=role==='manager';
 
   const atomsTotal=LOGIC.sumInnings(sc.atoms);
@@ -2148,7 +2149,7 @@ function openScoreNumpad(team,idx){
   const g=games[currentGameIdx];
   scoreNumpadTarget={team,idx};
   const val=g.score[team][idx];
-  document.getElementById('numpad-title').textContent=(team==='atoms'?'アトムズ':g.opp)+' '+(idx===6?'サドン':idx+1+'回')+'回';
+  document.getElementById('numpad-title').textContent=(team==='atoms'?'アトムズ':g.opp)+' '+(idx===6?'TB':idx+1+'回');
   numpadVal=val!==undefined?String(val):'';
   updateNumpadDisplay();
   // numpadConfirmをスコア用に上書き
@@ -2550,7 +2551,7 @@ function openExportMenu(){
 function exportPitcherExcel(){
   const wb=XLSX.utils.book_new();
   const INNINGS=[1,2,3,4,5,6,7];
-  const INN_LABELS=['1回','2回','3回','4回','5回','6回','サドン'];
+  const INN_LABELS=['1回','2回','3回','4回','5回','6回','TB'];
   const ROWS=['球数','与四球','奪三振','被安打'];
   games.forEach(g=>{
     if(!g.pitchers||g.pitchers.length===0) return;
@@ -2601,7 +2602,7 @@ function exportCommentExcel(){
  */
 function exportScoreExcel(){
   const wb=XLSX.utils.book_new();
-  const wsData=[['試合日','対戦相手','先攻後攻','1回','2回','3回','4回','5回','6回','サドン','アトムズ計','相手計','勝敗']];
+  const wsData=[['試合日','対戦相手','先攻後攻','1回','2回','3回','4回','5回','6回','TB','アトムズ計','相手計','勝敗']];
   [...games].sort((a,b)=>a.date.localeCompare(b.date)).forEach(g=>{
     const sc=g.score||{batting:'先攻',atoms:[],opp:[]};
     const aT=LOGIC.sumInnings(sc.atoms);
