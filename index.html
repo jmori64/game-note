@@ -190,11 +190,10 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
     <button onclick="backToMain()" style="font-size:13px;color:#888;background:none;border:none;cursor:pointer;">← 戻る</button>
     <span class="badge" id="role-badge2"></span>
   </div>
-  <div id="game-info-header" style="margin-bottom:1rem;"></div>
+  <div id="game-info-header" style="margin-bottom:.5rem;"></div>
+  <div id="game-score-summary" style="margin-bottom:.75rem;"></div>
   <div class="tab-bar">
-    <button class="tab active" onclick="switchGameTab('field',this)">守備位置</button>
-    <button class="tab" onclick="switchGameTab('order',this)">オーダー</button>
-    <button class="tab" onclick="switchGameTab('score',this)">スコア</button>
+    <button class="tab active" onclick="switchGameTab('field',this)">ラインナップ</button>
     <button class="tab" id="tab-pitcher-btn" onclick="switchGameTab('pitcher',this)">投手記録</button>
     <button class="tab" id="tab-comment-btn" onclick="switchGameTab('comment',this)">コメント</button>
   </div>
@@ -212,18 +211,11 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
       </svg>
     </div>
     <p id="field-swap-hint" style="font-size:12px;color:#888;text-align:center;margin-bottom:.75rem;display:none;"></p>
-    <div id="field-bench"></div>
-  </div>
-  <div id="gt-order" style="display:none;">
     <div id="div-order-add" style="display:none;margin-bottom:.75rem;"><button class="sbtn" onclick="openAddOrderModal()">＋ 打順に追加</button></div>
     <div class="card" id="order-list"></div>
     <div id="div-order-notice" style="display:none;margin-top:8px;"><p class="notice">閲覧モード（データ更新者のみ編集可）</p></div>
-    <div id="order-bench"></div>
+    <div id="field-bench"></div>
   </div>
-  <div id="gt-score" style="display:none;">
-    <div id="score-content"></div>
-  </div>
-
   <div id="gt-comment" style="display:none;">
     <div id="comment-content"></div>
   </div>
@@ -1278,12 +1270,10 @@ function openGame(idx){
   document.getElementById('div-order-notice').style.display=(role==='member'||role==='staff')?'block':'none';
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',i===0));
   document.getElementById('gt-field').style.display='block';
-  document.getElementById('gt-order').style.display='none';
-  document.getElementById('gt-score').style.display='none';
   document.getElementById('gt-comment').style.display='none';
   document.getElementById('gt-pitcher').style.display='none';
   if(g.order.length===0&&role==='manager') autoFillOrder(idx);
-  renderOrder();renderField();
+  renderScoreSummary();renderOrder();renderField();
 }
 /**
  * 試合一覧画面へ戻る（選択状態・タイマー・コメントリスナーをクリア）
@@ -1303,12 +1293,9 @@ function switchGameTab(tab,el){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   if(el) el.classList.add('active');
   document.getElementById('gt-field').style.display=tab==='field'?'block':'none';
-  document.getElementById('gt-order').style.display=tab==='order'?'block':'none';
-  document.getElementById('gt-score').style.display=tab==='score'?'block':'none';
   document.getElementById('gt-comment').style.display=tab==='comment'?'block':'none';
   document.getElementById('gt-pitcher').style.display=tab==='pitcher'?'block':'none';
   if(tab==='pitcher') renderPitcherTable();
-  if(tab==='score') renderScore();
   if(tab==='comment') renderComments();
 }
 
@@ -1355,7 +1342,7 @@ function renderOrder(){
     }
     list.appendChild(row);
   });
-  renderBench('order-bench');
+  renderBench('field-bench');
 }
 
 let dragSrcIdx=null;
@@ -1562,11 +1549,10 @@ function renderBench(containerId){
     container.appendChild(benchLabel);
   } else {
     let hintText='ベンチ（'+bench.length+'名）';
-    if(!isField){
-      if(benchSelected!==null) hintText+=' — 交換する打順選手をタップ';
-      else if(orderSelected!==null) hintText+=' — 交換するベンチ選手をタップ';
-    } else {
-      if(fieldSelected!==null) hintText+='  — 入れ替える選手を選択';
+    if(isField){
+      // ラインナップタブ：フィールド選択中 or 打順選択中の状態に応じてヒント表示
+      if(orderSelected!==null||benchSelected!==null) hintText+=' — 交換する打順選手をタップ';
+      else if(fieldSelected!==null) hintText+=' — 入れ替える選手を選択';
     }
     benchLabel.textContent=hintText;
     container.appendChild(benchLabel);
@@ -1577,48 +1563,31 @@ function renderBench(containerId){
       const row=document.createElement('div');
       row.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:0.5px solid #eee;';
       if(isField){
-        // フィールドタブ：マネージャーは常にクリック可（ベンチ先選択 or フィールド選手選択済みで交換）
+        // ラインナップタブ：フィールド位置交換 OR 打順スロット交換の両方に対応
         const isFBSel=role==='manager'&&fieldBenchSelected===p.name;
-        const isFieldSel=role==='manager'&&fieldSelected!==null;
-        if(role==='manager'){
-          row.style.cursor='pointer';
-          if(isFBSel) row.style.background='#e6f1fb';
-          else if(isFieldSel) row.style.background='#f0f9e8';
-          row.addEventListener('click',function(){
-            if(fieldSelected!==null){
-              // フィールド選手が先に選択されている → このベンチ選手と交換
-              swapWithBenchDirect(fieldSelected,p.name);
-            } else {
-              // ベンチ選手を選択（または解除）
-              fieldBenchSelected=(fieldBenchSelected===p.name)?null:p.name;
-              renderField();
-            }
-          });
-        }
-        const nameColor=isFBSel?'#185fa5':(isFieldSel?'#2a8a2a':'#1a1a1a');
-        row.innerHTML='<span class="pos-pill">-</span>'
-          +'<span style="font-size:14px;flex:1;color:'+nameColor+';">'+p.name+'</span>'
-          +'<span style="font-size:12px;color:#888;flex-shrink:0;">#'+(p.num||'-')+'</span>';
-      } else {
-        // 打順タブ：マネージャーは常にクリック可（ベンチ→打順の選択または打順→ベンチの交換）
         const isBenchSel=role==='manager'&&benchSelected===p.name;
+        const isFieldSel=role==='manager'&&fieldSelected!==null;
         const isOrderSel=role==='manager'&&orderSelected!==null;
         if(role==='manager'){
           row.style.cursor='pointer';
-          if(isBenchSel) row.style.background='#e6f1fb';
-          else if(isOrderSel) row.style.background='#f0f9e8';
+          if(isFBSel||isBenchSel) row.style.background='#e6f1fb';
+          else if(isFieldSel||isOrderSel) row.style.background='#f0f9e8';
           row.addEventListener('click',function(){
-            if(orderSelected!==null){
-              // 打順選手が先に選択されている → このベンチ選手と交換
+            if(fieldSelected!==null){
+              // フィールド選手選択中 → このベンチ選手と守備位置を交換
+              swapWithBenchDirect(fieldSelected,p.name);
+            } else if(orderSelected!==null){
+              // 打順選手選択中 → このベンチ選手と打順スロットを交換
               swapOrderWithBench(orderSelected,p.name);
             } else {
-              // ベンチ選手を選択（または解除）
+              // 未選択 → ベンチ選手を打順入替用に選択（または解除）
               benchSelected=(benchSelected===p.name)?null:p.name;
+              fieldBenchSelected=null;
               renderOrder();
             }
           });
         }
-        const nameColor=isBenchSel?'#185fa5':(isOrderSel?'#2a8a2a':'#1a1a1a');
+        const nameColor=(isFBSel||isBenchSel)?'#185fa5':((isFieldSel||isOrderSel)?'#2a8a2a':'#1a1a1a');
         row.innerHTML='<span class="pos-pill">-</span>'
           +'<span style="font-size:14px;flex:1;color:'+nameColor+';">'+p.name+'</span>'
           +'<span style="font-size:12px;color:#888;flex-shrink:0;">#'+(p.num||'-')+'</span>';
@@ -1629,9 +1598,8 @@ function renderBench(containerId){
   }
 
   // 欠席・交代済ボタン（マネージャー、選手選択中のとき）
-  const anySelected=isField
-    ?(fieldSelected!==null||fieldBenchSelected!==null)
-    :(orderSelected!==null||benchSelected!==null);
+  // ラインナップタブは4つの選択状態すべてをカバー
+  const anySelected=fieldSelected!==null||fieldBenchSelected!==null||orderSelected!==null||benchSelected!==null;
   if(role==='manager' && anySelected){
     const btnWrap=document.createElement('div');
     btnWrap.style.cssText='margin-top:8px;display:flex;gap:8px;';
@@ -1641,11 +1609,10 @@ function renderBench(containerId){
     absBtn.addEventListener('click',function(){
       const g2=games[currentGameIdx];
       let targetName;
-      if(isField){
-        targetName=fieldSelected!==null?g2.order[fieldSelected].name:fieldBenchSelected;
-      } else {
-        targetName=orderSelected!==null?g2.order[orderSelected].name:benchSelected;
-      }
+      if(fieldSelected!==null) targetName=g2.order[fieldSelected].name;
+      else if(orderSelected!==null) targetName=g2.order[orderSelected].name;
+      else if(fieldBenchSelected!==null) targetName=fieldBenchSelected;
+      else targetName=benchSelected;
       movePlayerToStatus(targetName,'absent');
     });
     const subBtn=document.createElement('button');
@@ -1654,11 +1621,10 @@ function renderBench(containerId){
     subBtn.addEventListener('click',function(){
       const g2=games[currentGameIdx];
       let targetName;
-      if(isField){
-        targetName=fieldSelected!==null?g2.order[fieldSelected].name:fieldBenchSelected;
-      } else {
-        targetName=orderSelected!==null?g2.order[orderSelected].name:benchSelected;
-      }
+      if(fieldSelected!==null) targetName=g2.order[fieldSelected].name;
+      else if(orderSelected!==null) targetName=g2.order[orderSelected].name;
+      else if(fieldBenchSelected!==null) targetName=fieldBenchSelected;
+      else targetName=benchSelected;
       movePlayerToStatus(targetName,'substituted');
     });
     btnWrap.appendChild(absBtn);
@@ -2031,7 +1997,7 @@ function numpadConfirm(){
     if(numpadVal==='') delete g.score[team][idx];
     else g.score[team][idx]=parseInt(numpadVal);
     window._numpadMode=null;
-    closeModal('mo-numpad');renderScore();saveData();
+    closeModal('mo-numpad');renderScoreSummary();saveData();
     return;
   }
   const{pitcherIdx,row,inning}=numpadTarget;
@@ -2055,30 +2021,17 @@ function deletePitcher(idx){
  * スコアタブを描画する（先攻・後攻切り替え、時刻設定、カウントダウンを含む）
  * @returns {void}
  */
-function renderScore(){
+/**
+ * タブ上部（常時表示エリア）に先攻後攻・時刻情報を描画する
+ * @returns {void}
+ */
+function renderScoreSummary(){
   const g=games[currentGameIdx];
-  if(!g) return;
-  if(!g.score) g.score={batting:'先攻',atoms:[],opp:[]};
-  const sc=g.score;
-  const wrap=document.getElementById('score-content');
-  const SCORE_INNINGS=['1','2','3','4','5','6','T'];
+  const wrap=document.getElementById('game-score-summary');
+  if(!g||!wrap){return;}
+  const sc=g.score||{batting:'先攻',atoms:[],opp:[]};
+  if(!g.score) g.score=sc;
   const isManager=role==='manager';
-
-  const atomsTotal=LOGIC.sumInnings(sc.atoms);
-  const oppTotal  =LOGIC.sumInnings(sc.opp);
-
-  let html=`<div style="margin-bottom:1rem;">`;
-
-  // 先攻・後攻選択
-  html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:1rem;">
-    <span style="font-size:13px;color:#888;">アトムズ：</span>
-    ${isManager?`
-    <button onclick="setScoreBatting('先攻')" style="padding:4px 12px;border-radius:8px;border:0.5px solid #ccc;background:${sc.batting==='先攻'?'#1a1a1a':'none'};color:${sc.batting==='先攻'?'#fff':'#666'};cursor:pointer;font-size:13px;">先攻</button>
-    <button onclick="setScoreBatting('後攻')" style="padding:4px 12px;border-radius:8px;border:0.5px solid #ccc;background:${sc.batting==='後攻'?'#1a1a1a':'none'};color:${sc.batting==='後攻'?'#fff':'#666'};cursor:pointer;font-size:13px;">後攻</button>`
-    :`<span style="font-size:13px;font-weight:500;color:#1a1a1a;">${sc.batting}</span>`}
-  </div>`;
-
-  // 開始時刻・試合時間・終了予定
   if(!sc.startTime) sc.startTime='';
   if(!sc.duration) sc.duration=CONSTANTS.DEFAULT_GAME_DURATION;
   let endTimeStr='';
@@ -2087,32 +2040,44 @@ function renderScore(){
     const endMin=h*60+m+parseInt(sc.duration||CONSTANTS.DEFAULT_GAME_DURATION);
     endTimeStr=String(Math.floor(endMin/60)%24).padStart(2,'0')+':'+String(endMin%60).padStart(2,'0');
   }
-  html+=`<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
-    <div style="display:flex;align-items:center;gap:6px;">
-      <span style="font-size:13px;color:#888;">開始</span>
+  const SCORE_INNINGS=['1','2','3','4','5','6','T'];
+  const atomsTotal=LOGIC.sumInnings(sc.atoms);
+  const oppTotal=LOGIC.sumInnings(sc.opp);
+
+  let html=`<div style="padding:.5rem .75rem;background:#fff;border:0.5px solid #ddd;border-radius:10px;font-size:13px;">`;
+  // 先攻・後攻
+  html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+    <span style="color:#888;">アトムズ：</span>
+    ${isManager
+      ?`<button onclick="setScoreBatting('先攻')" style="padding:3px 10px;border-radius:8px;border:0.5px solid #ccc;background:${sc.batting==='先攻'?'#1a1a1a':'none'};color:${sc.batting==='先攻'?'#fff':'#666'};cursor:pointer;font-size:12px;">先攻</button>
+    <button onclick="setScoreBatting('後攻')" style="padding:3px 10px;border-radius:8px;border:0.5px solid #ccc;background:${sc.batting==='後攻'?'#1a1a1a':'none'};color:${sc.batting==='後攻'?'#fff':'#666'};cursor:pointer;font-size:12px;">後攻</button>`
+      :`<span style="font-weight:500;color:#1a1a1a;">${sc.batting}</span>`}
+  </div>`;
+  // 時刻情報
+  html+=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+    <div style="display:flex;align-items:center;gap:4px;">
+      <span style="color:#888;">開始</span>
       ${isManager
-        ? `<input type="time" id="score-start-time" value="${sc.startTime}" onchange="setScoreTime('startTime',this.value)" style="padding:4px 8px;border:0.5px solid #ccc;border-radius:8px;font-size:14px;">`
-        : `<span style="font-size:14px;font-weight:500;">${sc.startTime||'--:--'}</span>`}
+        ?`<input type="time" value="${sc.startTime}" onchange="setScoreTime('startTime',this.value)" style="padding:3px 6px;border:0.5px solid #ccc;border-radius:8px;font-size:13px;">`
+        :`<span style="font-weight:500;">${sc.startTime||'--:--'}</span>`}
     </div>
-    <div style="display:flex;align-items:center;gap:6px;">
-      <span style="font-size:13px;color:#888;">試合時間</span>
+    <div style="display:flex;align-items:center;gap:4px;">
+      <span style="color:#888;">試合時間</span>
       ${isManager
-        ? `<select id="score-duration" onchange="setScoreTime('duration',this.value)" style="padding:4px 8px;border:0.5px solid #ccc;border-radius:8px;font-size:14px;">
+        ?`<select onchange="setScoreTime('duration',this.value)" style="padding:3px 6px;border:0.5px solid #ccc;border-radius:8px;font-size:13px;">
             ${[70,80,90].map(d=>`<option value="${d}" ${sc.duration==d?'selected':''}>${d}分</option>`).join('')}
           </select>`
-        : `<span style="font-size:14px;font-weight:500;">${sc.duration||CONSTANTS.DEFAULT_GAME_DURATION}分</span>`}
+        :`<span style="font-weight:500;">${sc.duration||CONSTANTS.DEFAULT_GAME_DURATION}分</span>`}
     </div>
-    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-      <span style="font-size:13px;color:#888;">終了予定</span>
+    <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+      <span style="color:#888;">終了予定</span>
       ${isManager
-        ? `<input type="time" value="${sc.endTime||endTimeStr||''}" onchange="setScoreTime('endTime',this.value)" style="padding:4px 8px;border:0.5px solid #ccc;border-radius:8px;font-size:14px;font-weight:700;color:#185fa5;">`
-        : `<span style="font-size:16px;font-weight:700;color:#185fa5;">${sc.endTime||endTimeStr||'--:--'}</span>`
-      }
-      ${sc.endTime&&sc.endTime!==endTimeStr?`<span style="font-size:11px;font-weight:500;padding:2px 7px;border-radius:4px;background:#fff3cd;color:#856404;">延長</span>`:''}
+        ?`<input type="time" value="${sc.endTime||endTimeStr||''}" onchange="setScoreTime('endTime',this.value)" style="padding:3px 6px;border:0.5px solid #ccc;border-radius:8px;font-size:13px;font-weight:700;color:#185fa5;">`
+        :`<span style="font-weight:700;color:#185fa5;">${sc.endTime||endTimeStr||'--:--'}</span>`}
+      ${sc.endTime&&sc.endTime!==endTimeStr?`<span style="font-size:11px;font-weight:500;padding:2px 6px;border-radius:4px;background:#fff3cd;color:#856404;">延長</span>`:''}
       <span id="score-countdown" style="font-size:13px;color:#888;"></span>
     </div>
   </div>`;
-
   // スコア表
   html+=`<table style="border-collapse:collapse;font-size:13px;width:100%;table-layout:fixed;border:0.5px solid #ddd;margin-bottom:0;">
     <colgroup>
@@ -2121,7 +2086,7 @@ function renderScore(){
       <col style="width:36px;">
     </colgroup>
     <thead><tr>
-      <th style="padding:6px 6px;background:#f5f5f5;border:0.5px solid #ddd;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;position:sticky;left:0;">チーム</th>
+      <th style="padding:6px 6px;background:#f5f5f5;border:0.5px solid #ddd;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">チーム</th>
       ${SCORE_INNINGS.map(i=>`<th style="padding:6px 2px;background:#f5f5f5;border:0.5px solid #ddd;text-align:center;">${i}</th>`).join('')}
       <th style="padding:6px 2px;background:#eaf3de;border:0.5px solid #ddd;text-align:center;font-weight:500;">計</th>
     </tr></thead>
@@ -2133,7 +2098,7 @@ function renderScore(){
         {label:g.opp,key:'opp',total:oppTotal},
         {label:'アトムズ',key:'atoms',total:atomsTotal}
       ]).map(row=>`<tr>
-        <td style="padding:6px 6px;background:#f5f5f5;border:0.5px solid #ddd;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;position:sticky;left:0;" title="${row.label}">${row.label}</td>
+        <td style="padding:6px 6px;background:#f5f5f5;border:0.5px solid #ddd;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${row.label}">${row.label}</td>
         ${SCORE_INNINGS.map((inn,idx)=>{
           const val=sc[row.key][idx]!=null?sc[row.key][idx]:'';
           const sca=isManager?`onclick="openScoreNumpad('${row.key}',${idx})"`:'';
@@ -2144,16 +2109,14 @@ function renderScore(){
       </tr>`).join('')}
     </tbody>
   </table>`;
-
-  // 勝敗表示
+  // リード/ビハインド表示（スコアが入力されている場合）
   if(atomsTotal!==oppTotal){
     const diff=Math.abs(atomsTotal-oppTotal);
     const leading=atomsTotal>oppTotal;
-    html+=`<p style="font-size:14px;font-weight:500;color:${leading?'#185fa5':'#a32d2d'};text-align:center;margin-top:12px;">アトムズ ${leading?'リード':'ビハインド'}（${diff}点差）</p>`;
+    html+=`<p style="font-size:14px;font-weight:500;color:${leading?'#185fa5':'#a32d2d'};text-align:center;margin-top:10px;">アトムズ ${leading?'リード':'ビハインド'}（${diff}点差）</p>`;
   } else if(sc.atoms.length>0||sc.opp.length>0){
-    html+=`<p style="font-size:14px;font-weight:500;color:#888;text-align:center;margin-top:12px;">同点</p>`;
+    html+=`<p style="font-size:14px;font-weight:500;color:#888;text-align:center;margin-top:10px;">同点</p>`;
   }
-
   html+=`</div>`;
   wrap.innerHTML=html;
   const cdTarget=sc.endTime||endTimeStr;
@@ -2233,7 +2196,7 @@ function setScoreTime(key, val){
   if(!g) return;
   if(!g.score) g.score={batting:'先攻',atoms:[],opp:[],startTime:'',duration:CONSTANTS.DEFAULT_GAME_DURATION};
   g.score[key]=key==='duration'?parseInt(val):val;
-  saveData();renderScore();
+  saveData();renderScoreSummary();
 }
 
 /**
@@ -2246,7 +2209,7 @@ function setScoreBatting(val){
   if(!g) return;
   if(!g.score) g.score={batting:'先攻',atoms:[],opp:[]};
   g.score.batting=val;
-  saveData();renderScore();
+  saveData();renderScoreSummary();
 }
 
 /**
