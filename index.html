@@ -1366,8 +1366,13 @@ function changePos(idx,newPos){
 }
 
 function openAddOrderModal(){
+  const g=games[currentGameIdx];
+  const inOrder=(g&&g.order)?g.order.map(e=>e.name):[];
   const sel=document.getElementById('oo-player');
-  sel.innerHTML=roster.map((p,i)=>`<option value="${i}">${p.num} ${p.name}（${p.stamenPos||'-'}）</option>`).join('');
+  // すでに打順に入っている選手を除外
+  const available=roster.map((p,i)=>({p,i})).filter(({p})=>!inOrder.includes(p.name));
+  if(available.length===0){alert('ベンチに追加できる選手がいません');return;}
+  sel.innerHTML=available.map(({p,i})=>`<option value="${i}">${p.num} ${p.name}（${p.stamenPos||'-'}）</option>`).join('');
   updateOoPosPreview();sel.onchange=updateOoPosPreview;
   openModal('mo-order');
 }
@@ -1386,6 +1391,7 @@ function saveOrderEntry(){
   const pidx=parseInt(document.getElementById('oo-player').value);
   const p=isNaN(pidx)?null:roster[pidx];
   if(!p){alert('選手を選択してください');return;}
+  if(g.order.some(e=>e.name===p.name)){alert(p.name+'はすでに打順に入っています');return;}
   const pos=p.stamenPos||'右';
   const dup=LOGIC.findDuplicatePos(g.order, pos);
   if(dup){
@@ -1458,13 +1464,16 @@ function renderField(){
   });
   const hint=document.getElementById('field-swap-hint');
   if(hint){
-    if(role==='manager'){hint.style.display='block';}
     const g2=games[currentGameIdx];
-    hint.textContent=fieldBenchSelected!==null
-      ?fieldBenchSelected+'を選択中 — 配置する打順スロットをタップ'
-      :fieldSelected!==null
-        ?g2.order[fieldSelected].name.replace(' ','')+'を選択中 — 交換する選手をタップ'
-        :'選手をタップしてポジションを入れ替え';
+    if(role==='manager'&&(fieldBenchSelected!==null||fieldSelected!==null)){
+      hint.style.display='block';
+      hint.textContent=fieldBenchSelected!==null
+        ?fieldBenchSelected+'を選択中 — 配置する打順スロットをタップ'
+        :g2.order[fieldSelected].name.replace(' ','')+'を選択中 — 交換する選手をタップ';
+    } else {
+      hint.style.display='none';
+      hint.textContent='';
+    }
   }
   renderBench('field-bench');
 }
@@ -2204,7 +2213,7 @@ function renderComments(){
   let html='';
 
   if(isManager||role==='staff'||role==='member'){
-    const isM=isManager;
+    const isM=isManager||role==='staff';
     // デフォルトでGoodを選択済みにする
     if(_commentType==='') _commentType='Good';
     html+=`<div style="margin-bottom:1rem;">
