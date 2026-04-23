@@ -1912,15 +1912,17 @@ function renderPitcherTable(){
       </div>
       ${area1Html}
       ${area2Html}
-      <div style="font-weight:600;font-size:12px;color:#333;margin-bottom:4px;">③ 基礎数値</div>
+      <div style="background:#f5f5f5;border-left:3px solid #999;border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:8px;">
+        <div style="font-weight:600;font-size:12px;color:#555;">③ 基礎数値（この試合）</div>
+      </div>
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
       <table style="border-collapse:collapse;font-size:12px;min-width:100%;border:0.5px solid #ddd;">
         <thead><tr>
           <th style="padding:5px 6px;background:#f5f5f5;border:0.5px solid #ddd;text-align:left;min-width:52px;position:sticky;left:0;">項目</th>
-          ${INNINGS.map(i=>`<th style="padding:5px 8px;background:#f5f5f5;border:0.5px solid #ddd;text-align:center;min-width:36px;">${i===7?'サドン':i+'回'}</th>`).join('')}
+          ${INNINGS.map(i=>`<th style="padding:5px 8px;background:#f5f5f5;border:0.5px solid #ddd;text-align:center;min-width:36px;">${i===7?'S':i+'回'}</th>`).join('')}
           <th style="padding:5px 8px;background:#eaf3de;border:0.5px solid #ddd;text-align:center;min-width:36px;font-weight:500;">計</th>
         </tr></thead>
-        <tbody>${(role==='member'?['球数']:PITCHER_ROWS).map(row=>{
+        <tbody>${(role==='member'?['球数','投球回']:PITCHER_ROWS).map(row=>{
           const isIP=row==='投球回';
           return `<tr>
             <td style="padding:5px 6px;background:#f5f5f5;border:0.5px solid #ddd;font-weight:500;color:#555;position:sticky;left:0;">${row}</td>
