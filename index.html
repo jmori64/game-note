@@ -2040,14 +2040,6 @@ function renderScoreSummary(){
   const oppTotal=LOGIC.sumInnings(sc.opp);
 
   let html=`<div style="padding:.5rem .75rem;background:#fff;border:0.5px solid #ddd;border-radius:10px;font-size:13px;">`;
-  // 先攻・後攻
-  html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-    <span style="color:#888;">アトムズ：</span>
-    ${isManager
-      ?`<button onclick="setScoreBatting('先攻')" style="padding:3px 10px;border-radius:8px;border:0.5px solid #ccc;background:${sc.batting==='先攻'?'#1a1a1a':'none'};color:${sc.batting==='先攻'?'#fff':'#666'};cursor:pointer;font-size:12px;">先攻</button>
-    <button onclick="setScoreBatting('後攻')" style="padding:3px 10px;border-radius:8px;border:0.5px solid #ccc;background:${sc.batting==='後攻'?'#1a1a1a':'none'};color:${sc.batting==='後攻'?'#fff':'#666'};cursor:pointer;font-size:12px;">後攻</button>`
-      :`<span style="font-weight:500;color:#1a1a1a;">${sc.batting}</span>`}
-  </div>`;
   // 時刻情報
   html+=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
     <div style="display:flex;align-items:center;gap:4px;">
@@ -2093,7 +2085,7 @@ function renderScoreSummary(){
         {label:g.opp,key:'opp',total:oppTotal},
         {label:'アトムズ',key:'atoms',total:atomsTotal}
       ]).map(row=>`<tr>
-        <td style="padding:6px 6px;background:#f5f5f5;border:0.5px solid #ddd;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${row.label}">${row.label}</td>
+        <td onclick="${isManager?(row.key==='atoms'?"setScoreBatting('先攻')":"setScoreBatting('後攻')"):'void 0'}" style="padding:6px 6px;background:#f5f5f5;border:0.5px solid #ddd;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${isManager?'cursor:pointer;':''}" title="${isManager?'タップで先攻に設定':row.label}">${row.label}</td>
         ${SCORE_INNINGS.map((inn,idx)=>{
           const val=sc[row.key][idx]!=null?sc[row.key][idx]:'';
           const sca=isManager?`onclick="openScoreNumpad('${row.key}',${idx})"`:'';
