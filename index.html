@@ -180,7 +180,6 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
   <div id="p-roster" style="display:none;">
     <div id="div-roster-add" style="display:none;"><button class="btn-primary" onclick="openPlayerModal(-1)">＋ 選手を追加</button></div>
     <div class="card" id="roster-list"></div>
-    <div id="div-roster-notice" style="display:none;"><p class="notice">閲覧モード</p></div>
   </div>
 </div>
 
@@ -193,7 +192,7 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
   <div id="game-info-header" style="margin-bottom:.5rem;"></div>
   <div id="game-score-summary" style="margin-bottom:.75rem;"></div>
   <div class="tab-bar">
-    <button class="tab active" onclick="switchGameTab('field',this)">ラインナップ</button>
+    <button class="tab active" onclick="switchGameTab('field',this)">オーダー</button>
     <button class="tab" id="tab-pitcher-btn" onclick="switchGameTab('pitcher',this)">投手記録</button>
     <button class="tab" id="tab-comment-btn" onclick="switchGameTab('comment',this)">コメント</button>
   </div>
@@ -213,7 +212,6 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
     <p id="field-swap-hint" style="font-size:12px;color:#888;text-align:center;margin-bottom:.75rem;display:none;"></p>
     <div id="div-order-add" style="display:none;margin-bottom:.75rem;"><button class="sbtn" onclick="openAddOrderModal()">＋ 打順に追加</button></div>
     <div class="card" id="order-list"></div>
-    <div id="div-order-notice" style="display:none;margin-top:8px;"><p class="notice">閲覧モード（データ更新者のみ編集可）</p></div>
     <div id="field-bench"></div>
   </div>
   <div id="gt-comment" style="display:none;">
@@ -876,7 +874,6 @@ function doLogin(r){
   document.getElementById('btn-import-label').style.display=role==='manager'?'':'none';
   document.getElementById('btn-excel').style.display=role==='manager'?'':'none';
   document.getElementById('div-roster-add').style.display=role==='manager'?'block':'none';
-  document.getElementById('div-roster-notice').style.display=role==='member'?'block':'none';
   // 選手登録タブ：manager のみ表示（staff・member は非表示）
   document.getElementById('nav-roster-btn').style.display=role==='manager'?'':'none';
   renderGames();renderRoster();
@@ -948,7 +945,7 @@ function renderGames(){
       ?(aTotal>oTotal?(_gameFinished?'勝ち':'リード'):aTotal<oTotal?(_gameFinished?'負け':'ビハインド'):(_gameFinished?'引分け':'同点'))
       :'';
     const winColor=aTotal>oTotal?'#185fa5':aTotal<oTotal?'#a32d2d':'#888';
-    info.innerHTML=`${g.category?`<div class="game-sub">${g.category}</div>`:''}<div class="game-title">vs ${g.opp}</div><div class="game-sub">${g.date} &nbsp;·&nbsp; ${(g.order||[]).length}名登録</div>`;
+    info.innerHTML=`${g.category?`<div class="game-sub">${g.category}</div>`:''}<div class="game-title">vs ${g.opp}</div><div class="game-sub">${g.date}</div>`;
     info.addEventListener('click',()=>openGame(i_orig));
     card.appendChild(info);
     if(scoreInline||g.venue){
@@ -1266,8 +1263,6 @@ function openGame(idx){
   if(pitcherTab) pitcherTab.style.display='';
   const commentTab=document.getElementById('tab-comment-btn');
   if(commentTab) commentTab.style.display='';
-  // staffはcoachと同様に閲覧モード表示
-  document.getElementById('div-order-notice').style.display=(role==='member'||role==='staff')?'block':'none';
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',i===0));
   document.getElementById('gt-field').style.display='block';
   document.getElementById('gt-comment').style.display='none';
@@ -2109,14 +2104,6 @@ function renderScoreSummary(){
       </tr>`).join('')}
     </tbody>
   </table>`;
-  // リード/ビハインド表示（スコアが入力されている場合）
-  if(atomsTotal!==oppTotal){
-    const diff=Math.abs(atomsTotal-oppTotal);
-    const leading=atomsTotal>oppTotal;
-    html+=`<p style="font-size:14px;font-weight:500;color:${leading?'#185fa5':'#a32d2d'};text-align:center;margin-top:10px;">アトムズ ${leading?'リード':'ビハインド'}（${diff}点差）</p>`;
-  } else if(sc.atoms.length>0||sc.opp.length>0){
-    html+=`<p style="font-size:14px;font-weight:500;color:#888;text-align:center;margin-top:10px;">同点</p>`;
-  }
   html+=`</div>`;
   wrap.innerHTML=html;
   const cdTarget=sc.endTime||endTimeStr;
