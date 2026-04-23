@@ -936,7 +936,25 @@ function renderGames(){
     const scoreInline=hasScore2
       ?(batting2==='先攻'?`ア${aTotal}-${oTotal}${oppChar}`:`${oppChar}${oTotal}-${aTotal}ア`)
       :'';
-    const winLoss=hasScore2?(aTotal>oTotal?'勝ち':aTotal<oTotal?'負け':'引分け'):'';
+    // 終了時間を判定して 勝ち/負け or リード/ビハインド を切り替える
+    const _today=new Date().toISOString().split('T')[0];
+    let _gameFinished=g.date<_today; // 過去の試合は常に終了
+    if(!_gameFinished&&hasScore2){
+      let _endT=sc2.endTime||'';
+      if(!_endT&&sc2.startTime){
+        const [_h,_m]=sc2.startTime.split(':').map(Number);
+        const _em=_h*60+_m+parseInt(sc2.duration||CONSTANTS.DEFAULT_GAME_DURATION);
+        _endT=String(Math.floor(_em/60)%24).padStart(2,'0')+':'+String(_em%60).padStart(2,'0');
+      }
+      if(_endT){
+        const _now=new Date();
+        const [_eh,_em2]=_endT.split(':').map(Number);
+        _gameFinished=(_now.getHours()*60+_now.getMinutes())>=(_eh*60+_em2);
+      }
+    }
+    const winLoss=hasScore2
+      ?(aTotal>oTotal?(_gameFinished?'勝ち':'リード'):aTotal<oTotal?(_gameFinished?'負け':'ビハインド'):(_gameFinished?'引分け':'同点'))
+      :'';
     const winColor=aTotal>oTotal?'#185fa5':aTotal<oTotal?'#a32d2d':'#888';
     info.innerHTML=`${g.category?`<div class="game-sub">${g.category}</div>`:''}<div class="game-title">vs ${g.opp}</div><div class="game-sub">${g.date} &nbsp;·&nbsp; ${(g.order||[]).length}名登録</div>`;
     info.addEventListener('click',()=>openGame(i_orig));
@@ -2096,12 +2114,16 @@ function renderScore(){
   </div>`;
 
   // スコア表
-  html+=`<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-  <table style="border-collapse:collapse;font-size:13px;min-width:100%;border:0.5px solid #ddd;">
+  html+=`<table style="border-collapse:collapse;font-size:13px;width:100%;table-layout:fixed;border:0.5px solid #ddd;margin-bottom:0;">
+    <colgroup>
+      <col style="width:auto;">
+      ${SCORE_INNINGS.map(()=>'<col style="width:30px;">').join('')}
+      <col style="width:36px;">
+    </colgroup>
     <thead><tr>
-      <th style="padding:6px 8px;background:#f5f5f5;border:0.5px solid #ddd;text-align:left;min-width:80px;position:sticky;left:0;">チーム</th>
-      ${SCORE_INNINGS.map(i=>`<th style="padding:6px 8px;background:#f5f5f5;border:0.5px solid #ddd;text-align:center;min-width:40px;">${i}</th>`).join('')}
-      <th style="padding:6px 8px;background:#eaf3de;border:0.5px solid #ddd;text-align:center;min-width:40px;font-weight:500;">計</th>
+      <th style="padding:6px 6px;background:#f5f5f5;border:0.5px solid #ddd;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;position:sticky;left:0;">チーム</th>
+      ${SCORE_INNINGS.map(i=>`<th style="padding:6px 2px;background:#f5f5f5;border:0.5px solid #ddd;text-align:center;">${i}</th>`).join('')}
+      <th style="padding:6px 2px;background:#eaf3de;border:0.5px solid #ddd;text-align:center;font-weight:500;">計</th>
     </tr></thead>
     <tbody>
       ${(sc.batting==='先攻'?[
@@ -2111,23 +2133,23 @@ function renderScore(){
         {label:g.opp,key:'opp',total:oppTotal},
         {label:'アトムズ',key:'atoms',total:atomsTotal}
       ]).map(row=>`<tr>
-        <td style="padding:6px 8px;background:#f5f5f5;border:0.5px solid #ddd;font-weight:500;position:sticky;left:0;white-space:nowrap;">${row.label}</td>
+        <td style="padding:6px 6px;background:#f5f5f5;border:0.5px solid #ddd;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;position:sticky;left:0;" title="${row.label}">${row.label}</td>
         ${SCORE_INNINGS.map((inn,idx)=>{
           const val=sc[row.key][idx]!=null?sc[row.key][idx]:'';
           const sca=isManager?`onclick="openScoreNumpad('${row.key}',${idx})"`:'';
           const scs=isManager?'cursor:pointer;':'';
-          return `<td ${sca} style="padding:6px 8px;border:0.5px solid #ddd;text-align:center;color:#1a1a1a;${scs}">${val}</td>`;
+          return `<td ${sca} style="padding:6px 2px;border:0.5px solid #ddd;text-align:center;color:#1a1a1a;${scs}">${val}</td>`;
         }).join('')}
-        <td style="padding:6px 8px;background:#eaf3de;border:0.5px solid #ddd;text-align:center;font-weight:500;color:#3b6d11;">${row.total}</td>
+        <td style="padding:6px 2px;background:#eaf3de;border:0.5px solid #ddd;text-align:center;font-weight:500;color:#3b6d11;">${row.total}</td>
       </tr>`).join('')}
     </tbody>
-  </table></div>`;
+  </table>`;
 
   // 勝敗表示
   if(atomsTotal!==oppTotal){
-    const winning=atomsTotal>oppTotal?'アトムズ リード':'${g.opp} リード';
     const diff=Math.abs(atomsTotal-oppTotal);
-    html+=`<p style="font-size:14px;font-weight:500;color:#185fa5;text-align:center;margin-top:12px;">${atomsTotal>oppTotal?'アトムズ':g.opp} リード（${diff}点差）</p>`;
+    const leading=atomsTotal>oppTotal;
+    html+=`<p style="font-size:14px;font-weight:500;color:${leading?'#185fa5':'#a32d2d'};text-align:center;margin-top:12px;">アトムズ ${leading?'リード':'ビハインド'}（${diff}点差）</p>`;
   } else if(sc.atoms.length>0||sc.opp.length>0){
     html+=`<p style="font-size:14px;font-weight:500;color:#888;text-align:center;margin-top:12px;">同点</p>`;
   }
