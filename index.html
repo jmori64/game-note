@@ -1683,8 +1683,7 @@ function swapWithBenchDirect(orderIdx, benchName){
   const benchPlayer=roster.find(p=>p.name===benchName);
   if(!benchPlayer) return;
   g.order=LOGIC.replaceOrderSlotWithBench(g.order, orderIdx, benchPlayer);
-  fieldSelected=null;
-  fieldBenchSelected=null;
+  fieldSelected=null;fieldBenchSelected=null;orderSelected=null;benchSelected=null;
   renderField();renderOrder();saveData();
 }
 
@@ -1705,8 +1704,7 @@ function swapOrderWithBench(orderIdx, benchName){
   const benchPlayer=roster.find(p=>p.name===benchName);
   if(!benchPlayer) return;
   g.order=LOGIC.replaceOrderSlotWithBench(g.order, orderIdx, benchPlayer);
-  orderSelected=null;
-  benchSelected=null;
+  fieldSelected=null;fieldBenchSelected=null;orderSelected=null;benchSelected=null;
   renderOrder();renderField();saveData();
 }
 
