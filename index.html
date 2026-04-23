@@ -925,10 +925,12 @@ function renderGames(){
     const scoreInline=hasScore2
       ?(batting2==='先攻'?`ア${aTotal}-${oTotal}${oppChar}`:`${oppChar}${oTotal}-${aTotal}ア`)
       :'';
-    // 終了時間を判定して 勝ち/負け or リード/ビハインド を切り替える
-    const _today=new Date().toISOString().split('T')[0];
-    let _gameFinished=g.date<_today; // 過去の試合は常に終了
-    if(!_gameFinished&&hasScore2){
+    // 日付＋終了時刻の両方で 勝ち/負け or リード/ビハインド を切り替える（ローカル日付で比較）
+    const _now=new Date();
+    const _today=_now.getFullYear()+'-'+String(_now.getMonth()+1).padStart(2,'0')+'-'+String(_now.getDate()).padStart(2,'0');
+    let _gameFinished=g.date<_today; // 過去日は無条件で終了
+    if(!_gameFinished&&g.date===_today&&hasScore2){
+      // 今日の試合：終了時刻が過ぎていれば終了
       let _endT=sc2.endTime||'';
       if(!_endT&&sc2.startTime){
         const [_h,_m]=sc2.startTime.split(':').map(Number);
@@ -936,7 +938,6 @@ function renderGames(){
         _endT=String(Math.floor(_em/60)%24).padStart(2,'0')+':'+String(_em%60).padStart(2,'0');
       }
       if(_endT){
-        const _now=new Date();
         const [_eh,_em2]=_endT.split(':').map(Number);
         _gameFinished=(_now.getHours()*60+_now.getMinutes())>=(_eh*60+_em2);
       }
