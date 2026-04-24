@@ -569,12 +569,15 @@ const LOGIC = Object.freeze({
    * @param {{p:number,ip:number,bb:number,hbp:number,h:number,k:number,er:number,gb:number,gbh:number,tb:number}} d
    * @returns {{pip:string|number, whip:string, hip:string, er:string, kbb:string, gb:string}}
    */
-  calcPitcherMetrics(d) {
+  calcPitcherMetrics(d, n=1) {
+    const erVal = d.ip > 0
+      ? (n > 1 ? (d.er / n).toFixed(1) : String(d.er))
+      : '-';
     return {
       pip:  d.ip > 0 ? Math.round(d.p / d.ip) : '-',
       whip: d.ip > 0 ? ((d.bb + d.hbp + d.h) / d.ip).toFixed(2) : '-',
       hip:  d.ip > 0 ? (d.h / d.ip).toFixed(2) : '-',
-      er:   d.ip > 0 ? String(d.er) : '-',
+      er:   erVal,
       kbb:  (d.bb + d.hbp) > 0 ? (d.k / (d.bb + d.hbp)).toFixed(2) : (d.ip > 0 ? '∞' : '-'),
       gb:   (d.tb + d.h) > 0 ? Math.round((d.gb + d.gbh) / (d.tb + d.h) * 100) + '%' : '-',
     };
@@ -1833,7 +1836,7 @@ function renderPitcherTable(){
     const totals=LOGIC.calcPitcherRowTotals(pt, PITCHER_ROWS);
 
     // エリア1：実績（過去3試合 → LOGIC純粋関数で集計）
-    const prev3=games.filter(pg=>pg.date<g.date).slice(-3);
+    const prev3=games.filter(pg=>pg.date<g.date && pg.pitchers && pg.pitchers.some(p=>p.name===pt.name)).slice(-3);
     // LOGIC 純粋関数で集計・指標計算（DOM/グローバル不使用）
     const pastByInn = LOGIC.accumulatePitcherInnData(prev3, pt.name);
     const curByInn  = LOGIC.buildPitcherInnData(pt);
@@ -1847,8 +1850,8 @@ function renderPitcherTable(){
     let a1rows='';
     (role==='member'?mRows.filter(m=>m.k==='pip'):mRows).forEach(m=>{
       a1rows+='<tr><td style="'+tdLS+'">'+m.l+'</td>';
-      INNINGS.forEach(i=>{a1rows+='<td style="'+tdGS+'">'+LOGIC.calcPitcherMetrics(pastByInn[i])[m.k]+'</td>';});
-      a1rows+='<td style="'+tdGS+'font-weight:700;">'+LOGIC.calcPitcherMetrics(pastTot)[m.k]+'</td>';
+      INNINGS.forEach(i=>{a1rows+='<td style="'+tdGS+'">'+LOGIC.calcPitcherMetrics(pastByInn[i], prev3.length)[m.k]+'</td>';});
+      a1rows+='<td style="'+tdGS+'font-weight:700;">'+LOGIC.calcPitcherMetrics(pastTot, prev3.length)[m.k]+'</td>';
       INNINGS.forEach(i=>{a1rows+='<td style="'+tdCS+'">'+LOGIC.calcPitcherMetrics(curByInn[i])[m.k]+'</td>';});
       a1rows+='<td style="'+tdCS+'font-weight:700;">'+LOGIC.calcPitcherMetrics(curTot)[m.k]+'</td>';
       a1rows+='</tr>';
@@ -1859,7 +1862,7 @@ function renderPitcherTable(){
       +'<table style="border-collapse:collapse;min-width:100%;">'
       +'<thead><tr>'
       +'<th style="'+thS+'background:#f5f5f5;position:sticky;left:0;">指標</th>'
-      +'<th colspan="'+(INNINGS.length+1)+'" style="'+thS+'background:#fff3cd;">過去'+prev3.length+'試合</th>'
+      +'<th colspan="'+(INNINGS.length+1)+'" style="'+thS+'background:#fff3cd;">過去'+prev3.length+'試合平均</th>'
       +'<th colspan="'+(INNINGS.length+1)+'" style="'+thS+'background:#cfe2ff;">この試合</th>'
       +'</tr><tr>'
       +'<th style="'+thS+'background:#f5f5f5;position:sticky;left:0;"></th>'
