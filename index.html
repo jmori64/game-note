@@ -2596,6 +2596,48 @@ function exportScoreExcel(){
 
 // ── 保存制御 ──
 let _saveStatusTimer=null;
+
+/**
+ * ゲームIDベースで2つのgames配列をマージする
+ * serverGamesを基本とし、localGamesにしか存在しないゲームを末尾に追加する
+ * @param {Game[]} serverGames - サーバー側のgames配列
+ * @param {Game[]} localGames  - ローカル側のgames配列
+ * @returns {Game[]}
+ */
+function _mergeGames(serverGames, localGames){
+  const merged=[...serverGames];
+  (localGames||[]).forEach(lg=>{
+    if(lg.gameId&&!merged.some(sg=>sg.gameId===lg.gameId)) merged.push(lg);
+  });
+  return merged;
+}
+
+/**
+ * 保存ステータスバーに「再試行」ボタン付きエラーを表示する
+ * _savePendingはtrueのまま維持してonSnapshotによるデータ上書きを防ぐ
+ * @returns {void}
+ */
+function _showRetryButton(){
+  const el=document.getElementById('save-status');
+  if(!el) return;
+  clearTimeout(_saveStatusTimer);
+  el.innerHTML='';
+  const txt=document.createElement('span');
+  txt.textContent='⚠️ 保存失敗 ';
+  el.appendChild(txt);
+  const btn=document.createElement('button');
+  btn.textContent='再試行';
+  btn.style.cssText='font-size:10px;padding:1px 6px;border-radius:6px;border:1px solid #991b1b;background:#fee2e2;color:#991b1b;cursor:pointer;margin-left:2px;';
+  btn.onclick=()=>{
+    el.textContent='保存中…';
+    el.style.color='#555';el.style.background='#f5f5f5';
+    _commitSave();
+  };
+  el.appendChild(btn);
+  el.style.color='#991b1b';
+  el.style.background='#fee2e2';
+  el.style.display='inline-block';
+}
 /**
  * 保存ステータスバーにメッセージを表示する
  * @param {string} text       - 表示テキスト
@@ -2698,31 +2740,38 @@ function _commitSave(){
     _showSaveStatus('✓ 保存完了', '#166634', '#dcfce7', CONSTANTS.SAVE_STATUS_CLEAR_MS);
   })
   .catch(e=>{
-    _releaseSavePending();
     if(e.isConflict){
-      alert('⚠️ 別の端末・タブでデータが更新されています。\n最新データを読み込みます。');
-      // 自分のデータを優先する場合は再度transactionで安全に上書き（docRef.setはオフラインキュー問題があるため不使用）
-      const first=confirm('⚠️ 別の端末・タブで新しいデータがあります。\n\n「キャンセル」→ サーバーの最新データを取得（推奨）\n「OK」→ この画面のデータで強制上書き（データ消失リスクあり）');
-      if(first){
-        const second=confirm('本当にこの画面のデータで上書きしますか？\n\nサーバー側の最新データが完全に失われます。');
-        if(second){
-          // transactionで上書き（バージョンチェックなし、ただしオフラインキューに入らない）
-          db.runTransaction(transaction=>{
-            return transaction.get(docRef).then(doc=>{
-              transaction.set(docRef,{
-                roster:rosterSnap,
-                games:gamesSnap,
-                version:(doc.exists?doc.data().version||0:0)+1,
-                updatedAt:new Date().toISOString()
-              });
-            });
-          }).then(()=>{console.log('強制上書き完了');})
-            .catch(err=>console.error('強制保存エラー:',err));
+      // CONFLICT: サーバー最新データを取得してゲームIDベースでマージし再保存
+      // _savePendingはtrueのまま維持（onSnapshotによる上書きを防ぐ）
+      db.collection('data').doc('main').get().then(doc=>{
+        if(!doc.exists){_releaseSavePending();_showRetryButton();return;}
+        const sd=doc.data();
+        const mergedGames=_mergeGames(sd.games||[],gamesSnap);
+        const hasLocalOnly=mergedGames.length>(sd.games||[]).length;
+        // メモリをサーバー最新＋ローカルのみゲームで更新（_savePending=trueのまま同期的に）
+        roster=sd.roster||roster;
+        games=mergedGames;
+        dataVersion=sd.version||0;
+        _releaseSavePending();
+        if(role){renderGames();renderRoster();}
+        if(hasLocalOnly){
+          // ローカルのみのゲームあり → 再保存でFirestoreに反映
+          console.log('CONFLICT: ローカルのみのゲームをマージして再保存');
+          saveData();
+        }else{
+          try{localStorage.removeItem('atoms_unsaved');}catch(ex){}
+          _showSaveStatus('✓ 同期完了','#166634','#dcfce7',CONSTANTS.SAVE_STATUS_CLEAR_MS);
         }
-      }
+      }).catch(err=>{
+        console.error('CONFLICT merge error:',err);
+        // _savePendingはtrueのまま → リトライボタンで再挑戦
+        _showRetryButton();
+      });
     }else{
+      // ネットワークエラー等：_savePendingをtrueのまま保持しリトライボタン表示
+      // onSnapshotによるデータ上書きを防止（30秒タイムアウト後に解放、その後はマージロジックが働く）
       console.error('Firestore保存エラー:',e);
-      _showSaveStatus('⚠️ 保存失敗', '#991b1b', '#fee2e2'); // 消えずに残す（ユーザーに確認させる）
+      _showRetryButton();
     }
   });
 }
@@ -2835,7 +2884,24 @@ function loadData(){
       }
 
       if(data.roster) roster=data.roster;
-      if(data.games) games=data.games;
+      // ── マージロジック：atoms_unsaved=trueの場合はローカルのみのゲームを保持 ──
+      const _serverGames=data.games||[];
+      if(localStorage.getItem('atoms_unsaved')==='true'){
+        let _localGames=[];
+        try{_localGames=JSON.parse(localStorage.getItem('atoms_games')||'[]');}catch(ex){}
+        const _merged=_mergeGames(_serverGames,_localGames);
+        if(_merged.length>_serverGames.length){
+          // ローカルのみのゲームを検出 → マージ結果をFirestoreに再保存
+          console.log('onSnapshot: ローカルのみのゲームを検出、マージ保存');
+          games=_merged;
+          dataVersion=data.version||0;
+          _dataLoaded=true;
+          if(role){renderGames();renderRoster();}
+          saveData(); // 再保存（成功すればatoms_unsavedが削除される）
+          return;
+        }
+      }
+      games=_serverGames;
       dataVersion=data.version||0;
       _dataLoaded=true;
       // localStorageも最新化
