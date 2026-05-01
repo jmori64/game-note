@@ -197,6 +197,13 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
     <button class="tab" id="tab-comment-btn" onclick="switchGameTab('comment',this)">コメント</button>
   </div>
   <div id="gt-field">
+    <div id="lineup-status-bar" style="display:flex;align-items:center;gap:8px;margin-bottom:.75rem;padding:7px 12px;background:#f5f5f5;border-radius:10px;">
+      <span style="font-size:13px;color:#333;font-weight:500;">スタメン確定？</span>
+      <div style="display:flex;gap:6px;margin-left:auto;">
+        <button id="lineup-btn-notyet" onclick="setLineupFixed(false)" style="padding:4px 12px;border-radius:6px;border:0.5px solid #ccc;font-size:12px;cursor:pointer;">Not yet</button>
+        <button id="lineup-btn-done"   onclick="setLineupFixed(true)"  style="padding:4px 12px;border-radius:6px;border:0.5px solid #ccc;font-size:12px;cursor:pointer;">Done</button>
+      </div>
+    </div>
     <div class="field-wrap">
       <svg id="field-svg" viewBox="0 0 500 360" xmlns="http://www.w3.org/2000/svg">
         <rect x="0" y="0" width="500" height="360" fill="#7CC97C"/>
@@ -1412,7 +1419,48 @@ function saveOrderEntry(){
  * フィールドタブ（SVGグラウンド図）を描画する
  * @returns {void}
  */
+/**
+ * スタメン確定ステータスバーを描画する
+ * @returns {void}
+ */
+function renderLineupStatus(){
+  const g=games[currentGameIdx];
+  const fixed=g&&g.lineupFixed===true;
+  const isM=role==='manager';
+  const btnN=document.getElementById('lineup-btn-notyet');
+  const btnD=document.getElementById('lineup-btn-done');
+  if(!btnN||!btnD) return;
+  const baseS='padding:4px 12px;border-radius:6px;font-size:12px;';
+  const activeNotyet=!fixed;
+  btnN.style.cssText=baseS+(activeNotyet
+    ?'border:none;background:#f97316;color:#fff;font-weight:600;cursor:'+(isM?'pointer':'default')+';'
+    :'border:0.5px solid #ccc;background:#fff;color:#888;cursor:'+(isM?'pointer':'default')+';');
+  btnD.style.cssText=baseS+(fixed
+    ?'border:none;background:#16a34a;color:#fff;font-weight:600;cursor:'+(isM?'pointer':'default')+';'
+    :'border:0.5px solid #ccc;background:#fff;color:#888;cursor:'+(isM?'pointer':'default')+';');
+  btnN.disabled=!isM;
+  btnD.disabled=!isM;
+}
+
+/**
+ * スタメン確定状態をトグルする（managerのみ・確認ポップアップあり）
+ * @param {boolean} value - true=Done / false=Not yet
+ * @returns {void}
+ */
+function setLineupFixed(value){
+  if(role!=='manager') return;
+  const g=games[currentGameIdx];
+  if(!g) return;
+  if((g.lineupFixed===true)===value) return;
+  const msg=value?'スタメンを「確定（Done）」にしますか？':'スタメンを「未確定（Not yet）」に戻しますか？';
+  if(!confirm(msg)) return;
+  g.lineupFixed=value;
+  renderLineupStatus();
+  saveData();
+}
+
 function renderField(){
+  renderLineupStatus();
   const g=games[currentGameIdx];
   const gr=document.getElementById('field-players-g');
   if(!gr) return;
