@@ -234,7 +234,8 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
 
   <div id="gt-scorebook" style="display:none;">
     <div id="scorebook-content"></div>
-    <input type="file" id="scorebook-input" accept="image/*" capture="environment" style="display:none;" onchange="onScoreboookFileSelected(event)"/>
+    <input type="file" id="scorebook-input-camera"  accept="image/*" capture="environment" style="display:none;" onchange="onScoreboookFileSelected(event)"/>
+    <input type="file" id="scorebook-input-library" accept="image/*" style="display:none;" onchange="onScoreboookFileSelected(event)"/>
   </div>
 </div>
 
@@ -1443,8 +1444,9 @@ function renderScorebook(){
   if(role==='member'){document.getElementById('gt-scorebook').style.display='none';return;}
   const canEdit=role==='manager';
   const btnHtml=canEdit
-    ?`<div style="text-align:center;margin-top:12px;">
-        <button class="sbtn" onclick="document.getElementById('scorebook-input').click()">📷 写真を変更</button>
+    ?`<div style="display:flex;gap:8px;justify-content:center;margin-top:12px;">
+        <button class="sbtn" onclick="document.getElementById('scorebook-input-camera').click()">📷 カメラ</button>
+        <button class="sbtn" onclick="document.getElementById('scorebook-input-library').click()">🖼️ ライブラリ</button>
       </div>`
     :'';
 
@@ -1459,7 +1461,10 @@ function renderScorebook(){
       const emptyHtml=canEdit
         ?`<div style="text-align:center;padding:2.5rem 0;">
             <p style="color:#aaa;font-size:13px;margin-bottom:12px;">写真が登録されていません</p>
-            <button class="sbtn" onclick="document.getElementById('scorebook-input').click()">📷 写真を追加</button>
+            <div style="display:flex;gap:8px;justify-content:center;">
+              <button class="sbtn" onclick="document.getElementById('scorebook-input-camera').click()">📷 カメラ</button>
+              <button class="sbtn" onclick="document.getElementById('scorebook-input-library').click()">🖼️ ライブラリ</button>
+            </div>
           </div>`
         :'<p style="color:#aaa;font-size:13px;text-align:center;padding:2rem 0;">写真が登録されていません</p>';
       el.innerHTML=emptyHtml;
