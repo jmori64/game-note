@@ -1282,10 +1282,13 @@ function openGame(idx){
   if(pitcherTab) pitcherTab.style.display='';
   const commentTab=document.getElementById('tab-comment-btn');
   if(commentTab) commentTab.style.display='';
+  const scorebookTab=document.getElementById('tab-scorebook-btn');
+  if(scorebookTab) scorebookTab.style.display=(role==='member')?'none':'';
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',i===0));
   document.getElementById('gt-field').style.display='block';
   document.getElementById('gt-comment').style.display='none';
   document.getElementById('gt-pitcher').style.display='none';
+  document.getElementById('gt-scorebook').style.display='none';
   if(g.order.length===0&&role==='manager') autoFillOrder(idx);
   renderScoreSummary();renderOrder();renderField();
 }
@@ -1437,6 +1440,7 @@ function renderScorebook(){
   const g=games[currentGameIdx];
   const el=document.getElementById('scorebook-content');
   if(!el) return;
+  if(role==='member'){document.getElementById('gt-scorebook').style.display='none';return;}
   const canEdit=role==='manager';
   const btnHtml=canEdit
     ?`<div style="text-align:center;margin-top:12px;">
