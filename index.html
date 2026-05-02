@@ -98,7 +98,7 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
       <div id="pin-c2" style="width:52px;height:64px;border:0.5px solid #ddd;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:500;color:#1a1a1a;">-</div>
       <div id="pin-c3" style="width:52px;height:64px;border:0.5px solid #ddd;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:500;color:#1a1a1a;">-</div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:240px;margin:0 auto;">
+    <div id="pin-keyboard-coach" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:240px;margin:0 auto;">
       <button class="pin-key" onclick="pinInputCoach(1)">1</button><button class="pin-key" onclick="pinInputCoach(2)">2</button><button class="pin-key" onclick="pinInputCoach(3)">3</button>
       <button class="pin-key" onclick="pinInputCoach(4)">4</button><button class="pin-key" onclick="pinInputCoach(5)">5</button><button class="pin-key" onclick="pinInputCoach(6)">6</button>
       <button class="pin-key" onclick="pinInputCoach(7)">7</button><button class="pin-key" onclick="pinInputCoach(8)">8</button><button class="pin-key" onclick="pinInputCoach(9)">9</button>
@@ -125,7 +125,7 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
       <div id="pin-s2" style="width:52px;height:64px;border:0.5px solid #ddd;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:500;color:#1a1a1a;">-</div>
       <div id="pin-s3" style="width:52px;height:64px;border:0.5px solid #ddd;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:500;color:#1a1a1a;">-</div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:240px;margin:0 auto;">
+    <div id="pin-keyboard-staff" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:240px;margin:0 auto;">
       <button class="pin-key" onclick="pinInputStaff(1)">1</button><button class="pin-key" onclick="pinInputStaff(2)">2</button><button class="pin-key" onclick="pinInputStaff(3)">3</button>
       <button class="pin-key" onclick="pinInputStaff(4)">4</button><button class="pin-key" onclick="pinInputStaff(5)">5</button><button class="pin-key" onclick="pinInputStaff(6)">6</button>
       <button class="pin-key" onclick="pinInputStaff(7)">7</button><button class="pin-key" onclick="pinInputStaff(8)">8</button><button class="pin-key" onclick="pinInputStaff(9)">9</button>
@@ -152,7 +152,7 @@ input[type=text],input[type=number],input[type=date],select,textarea{padding:8px
       <div id="pin-d2" style="width:52px;height:64px;border:0.5px solid #ddd;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:500;color:#1a1a1a;">-</div>
       <div id="pin-d3" style="width:52px;height:64px;border:0.5px solid #ddd;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:500;color:#1a1a1a;">-</div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:240px;margin:0 auto;">
+    <div id="pin-keyboard" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:240px;margin:0 auto;">
       <button class="pin-key" onclick="pinInput(1)">1</button><button class="pin-key" onclick="pinInput(2)">2</button><button class="pin-key" onclick="pinInput(3)">3</button>
       <button class="pin-key" onclick="pinInput(4)">4</button><button class="pin-key" onclick="pinInput(5)">5</button><button class="pin-key" onclick="pinInput(6)">6</button>
       <button class="pin-key" onclick="pinInput(7)">7</button><button class="pin-key" onclick="pinInput(8)">8</button><button class="pin-key" onclick="pinInput(9)">9</button>
@@ -365,15 +365,14 @@ const CONSTANTS = Object.freeze({
   // 認証・PIN ハッシュ (SHA-256)
   HASH_MANAGER: 'b1b5efd1a6cb804d54dd3d7c418a71e8a4153351b7e54b8ccafb3e6a746d0e69',
   HASH_STAFF:   '3378fd1b3e3d336695ad764a3c3675c36cd6474465122e332f8b1ff53b493dd1',
-  HASH_COACH:   '91a73fd806ab2c005c13b4dc19130a884e909dea3f72d46e30266fe1a1f588d8',
+  HASH_COACH:   'da70dfa4d9f95ac979f921e8e623358236313f334afcd06cddf8a5621cf6a1e9',
+  HASH_DELETE:  '728bf33aab1d32d4dca8fcc6a020d8baeb6b9910104541aa68c2d408154734fc',
   // PIN 桁数
   PIN_LEN_MANAGER: 4,
   PIN_LEN_STAFF:   6,
   PIN_LEN_MEMBER:  3,
   /** エラー表示後にPINをクリアするまでの時間 (ms) */
   PIN_ERROR_CLEAR_MS: 900,
-  /** 削除操作の最終確認PIN */
-  DELETE_PIN: '920',
   // 保存制御
   /** Firestoreへの書き込みデバウンス時間 (ms) */
   SAVE_DEBOUNCE_MS: 800,
@@ -766,58 +765,195 @@ async function sha256(str){
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
+// ── PINロックアウト管理 ──
+const LOCKOUT_MAX_ATTEMPTS = 10;
+const LOCKOUT_DURATION_MS  = 10 * 60 * 1000; // 10分
+const _lockoutTimers = {}; // roleKey → intervalId
+
+/** localStorageからロックアウトデータを取得 */
+function _getLockoutData(roleKey){
+  try{ return JSON.parse(localStorage.getItem('atoms_lockout_'+roleKey)||'{}'); }
+  catch(e){ return {}; }
+}
+/** localStorageにロックアウトデータを保存 */
+function _setLockoutData(roleKey, data){
+  try{ localStorage.setItem('atoms_lockout_'+roleKey, JSON.stringify(data)); }
+  catch(e){}
+}
+/** 現在ロック中かを返す。期限切れの場合はカウントをリセット */
+function _isLocked(roleKey){
+  const d=_getLockoutData(roleKey);
+  if(!d.lockedUntil) return {locked:false, count:d.count||0};
+  const remaining=d.lockedUntil - Date.now();
+  if(remaining > 0) return {locked:true, remainingMs:remaining, count:d.count||0};
+  _setLockoutData(roleKey,{count:0});
+  return {locked:false, count:0};
+}
+/** PIN失敗時に呼ぶ。10回でロック開始 */
+function _onPinFail(roleKey){
+  const d=_getLockoutData(roleKey);
+  const count=(d.count||0)+1;
+  if(count >= LOCKOUT_MAX_ATTEMPTS){
+    _setLockoutData(roleKey,{count, lockedUntil: Date.now()+LOCKOUT_DURATION_MS});
+    return {locked:true, count};
+  }
+  _setLockoutData(roleKey,{count});
+  return {locked:false, count};
+}
+/** PIN成功時に呼ぶ。カウントをリセット */
+function _onPinSuccess(roleKey){
+  if(_lockoutTimers[roleKey]) clearInterval(_lockoutTimers[roleKey]);
+  delete _lockoutTimers[roleKey];
+  _setLockoutData(roleKey,{count:0});
+}
+/** ロックアウトUIを表示し、カウントダウンを開始する */
+function _showLockoutUI(errorId, keyboardId, roleKey){
+  const state=_isLocked(roleKey);
+  if(!state.locked) return false;
+  const kbd=document.getElementById(keyboardId);
+  const errEl=document.getElementById(errorId);
+  if(kbd) kbd.style.pointerEvents='none';
+  if(errEl){
+    errEl.style.display='block';
+    _startLockoutCountdown(errEl, state.remainingMs, roleKey, keyboardId);
+  }
+  return true;
+}
+/** カウントダウンタイマーを1秒ごとに更新する */
+function _startLockoutCountdown(el, initialMs, roleKey, keyboardId){
+  if(_lockoutTimers[roleKey]) clearInterval(_lockoutTimers[roleKey]);
+  const endTime=Date.now()+initialMs;
+  function tick(){
+    const ms=endTime-Date.now();
+    if(ms<=0){
+      clearInterval(_lockoutTimers[roleKey]);
+      delete _lockoutTimers[roleKey];
+      _setLockoutData(roleKey,{count:0});
+      el.textContent='暗証番号が違います';
+      el.style.display='none';
+      const kbd=document.getElementById(keyboardId);
+      if(kbd) kbd.style.pointerEvents='';
+      return;
+    }
+    const mins=Math.floor(ms/60000);
+    const secs=Math.floor((ms%60000)/1000);
+    el.textContent=`🔒 ${mins}分${secs}秒後に解除されます`;
+  }
+  tick();
+  _lockoutTimers[roleKey]=setInterval(tick,1000);
+}
+/** ロックアウトUIをリセットする（戻るボタン時） */
+function _resetLockoutUI(errorId, keyboardId, roleKey){
+  if(_lockoutTimers[roleKey]){ clearInterval(_lockoutTimers[roleKey]); delete _lockoutTimers[roleKey]; }
+  const kbd=document.getElementById(keyboardId);
+  const errEl=document.getElementById(errorId);
+  if(kbd) kbd.style.pointerEvents='';
+  if(errEl){ errEl.style.display='none'; errEl.textContent='暗証番号が違います'; }
+}
+
 // ── PIN ──
 function showPin(){
   pinDigits=[];updatePinDisplay();
   document.getElementById('pin-screen').style.display='block';
   document.getElementById('pin-error').style.display='none';
+  document.getElementById('pin-keyboard').style.pointerEvents='';
   hideAllRoleBtns();
+  _showLockoutUI('pin-error','pin-keyboard','manager');
 }
 function hidePin(){
+  _resetLockoutUI('pin-error','pin-keyboard','manager');
   document.getElementById('pin-screen').style.display='none';
   showAllRoleBtns();
 }
-function pinInput(n){if(pinDigits.length>=CONSTANTS.PIN_LEN_MANAGER)return;pinDigits.push(n);updatePinDisplay();if(pinDigits.length===CONSTANTS.PIN_LEN_MANAGER)checkPin();}
+function pinInput(n){
+  if(_isLocked('manager').locked) return;
+  if(pinDigits.length>=CONSTANTS.PIN_LEN_MANAGER)return;
+  pinDigits.push(n);updatePinDisplay();if(pinDigits.length===CONSTANTS.PIN_LEN_MANAGER)checkPin();
+}
 function pinBack(){pinDigits.pop();updatePinDisplay();document.getElementById('pin-error').style.display='none';}
 function pinClear(){pinDigits=[];updatePinDisplay();document.getElementById('pin-error').style.display='none';}
 function updatePinDisplay(){
   ['pin-d1','pin-d2','pin-d3'].forEach((id,i)=>{document.getElementById(id).textContent=pinDigits[i]!==undefined?'●':'-';});
 }
 async function checkPin(){
+  if(_showLockoutUI('pin-error','pin-keyboard','manager')) return;
   const h=await sha256(pinDigits.join(''));
-  if(h===CONSTANTS.HASH_MANAGER){document.getElementById('pin-screen').style.display='none';doLogin('manager');}
-  else{recordLoginError('manager');document.getElementById('pin-error').style.display='block';setTimeout(()=>{pinDigits=[];updatePinDisplay();document.getElementById('pin-error').style.display='none';},CONSTANTS.PIN_ERROR_CLEAR_MS);}
+  if(h===CONSTANTS.HASH_MANAGER){
+    _onPinSuccess('manager');
+    document.getElementById('pin-screen').style.display='none';
+    doLogin('manager');
+  } else {
+    recordLoginError('manager');
+    const res=_onPinFail('manager');
+    pinDigits=[];updatePinDisplay();
+    const errEl=document.getElementById('pin-error');
+    if(res.locked){
+      _showLockoutUI('pin-error','pin-keyboard','manager');
+    } else {
+      const left=LOCKOUT_MAX_ATTEMPTS-res.count;
+      errEl.textContent=left<=3?`暗証番号が違います（あと${left}回でロック）`:'暗証番号が違います';
+      errEl.style.display='block';
+      setTimeout(()=>{errEl.style.display='none';errEl.textContent='暗証番号が違います';},CONSTANTS.PIN_ERROR_CLEAR_MS);
+    }
+  }
 }
 
 function showPinStaff(){
   pinDigitsStaff=[];updatePinDisplayStaff();
   document.getElementById('pin-screen-staff').style.display='block';
   document.getElementById('pin-error-staff').style.display='none';
+  document.getElementById('pin-keyboard-staff').style.pointerEvents='';
   hideAllRoleBtns();
+  _showLockoutUI('pin-error-staff','pin-keyboard-staff','staff');
 }
 function hidePinStaff(){
+  _resetLockoutUI('pin-error-staff','pin-keyboard-staff','staff');
   document.getElementById('pin-screen-staff').style.display='none';
   showAllRoleBtns();
 }
-function pinInputStaff(n){if(pinDigitsStaff.length>=CONSTANTS.PIN_LEN_STAFF)return;pinDigitsStaff.push(n);updatePinDisplayStaff();if(pinDigitsStaff.length===CONSTANTS.PIN_LEN_STAFF)checkPinStaff();}
+function pinInputStaff(n){
+  if(_isLocked('staff').locked) return;
+  if(pinDigitsStaff.length>=CONSTANTS.PIN_LEN_STAFF)return;
+  pinDigitsStaff.push(n);updatePinDisplayStaff();if(pinDigitsStaff.length===CONSTANTS.PIN_LEN_STAFF)checkPinStaff();
+}
 function pinBackStaff(){pinDigitsStaff.pop();updatePinDisplayStaff();document.getElementById('pin-error-staff').style.display='none';}
 function pinClearStaff(){pinDigitsStaff=[];updatePinDisplayStaff();document.getElementById('pin-error-staff').style.display='none';}
 function updatePinDisplayStaff(){
   ['pin-s1','pin-s2','pin-s3'].forEach((id,i)=>{document.getElementById(id).textContent=pinDigitsStaff[i]!==undefined?'●':'-';});
 }
 async function checkPinStaff(){
+  if(_showLockoutUI('pin-error-staff','pin-keyboard-staff','staff')) return;
   const h=await sha256(pinDigitsStaff.join(''));
-  if(h===CONSTANTS.HASH_STAFF){document.getElementById('pin-screen-staff').style.display='none';doLogin('staff');}
-  else{recordLoginError('staff');document.getElementById('pin-error-staff').style.display='block';setTimeout(()=>{pinDigitsStaff=[];updatePinDisplayStaff();document.getElementById('pin-error-staff').style.display='none';},CONSTANTS.PIN_ERROR_CLEAR_MS);}
+  if(h===CONSTANTS.HASH_STAFF){
+    _onPinSuccess('staff');
+    document.getElementById('pin-screen-staff').style.display='none';
+    doLogin('staff');
+  } else {
+    recordLoginError('staff');
+    const res=_onPinFail('staff');
+    pinDigitsStaff=[];updatePinDisplayStaff();
+    const errEl=document.getElementById('pin-error-staff');
+    if(res.locked){
+      _showLockoutUI('pin-error-staff','pin-keyboard-staff','staff');
+    } else {
+      const left=LOCKOUT_MAX_ATTEMPTS-res.count;
+      errEl.textContent=left<=3?`暗証番号が違います（あと${left}回でロック）`:'暗証番号が違います';
+      errEl.style.display='block';
+      setTimeout(()=>{errEl.style.display='none';errEl.textContent='暗証番号が違います';},CONSTANTS.PIN_ERROR_CLEAR_MS);
+    }
+  }
 }
 
 function showPinCoach(){
   pinDigitsCoach=[];updatePinDisplayCoach();
   document.getElementById('pin-screen-coach').style.display='block';
   document.getElementById('pin-error-coach').style.display='none';
+  document.getElementById('pin-keyboard-coach').style.pointerEvents='';
   hideAllRoleBtns();
+  _showLockoutUI('pin-error-coach','pin-keyboard-coach','member');
 }
 function hidePinCoach(){
+  _resetLockoutUI('pin-error-coach','pin-keyboard-coach','member');
   document.getElementById('pin-screen-coach').style.display='none';
   showAllRoleBtns();
 }
@@ -831,16 +967,37 @@ function showAllRoleBtns(){
     document.getElementById(id).style.display='flex';
   });
 }
-function pinInputCoach(n){if(pinDigitsCoach.length>=CONSTANTS.PIN_LEN_MEMBER)return;pinDigitsCoach.push(n);updatePinDisplayCoach();if(pinDigitsCoach.length===CONSTANTS.PIN_LEN_MEMBER)checkPinCoach();}
+function pinInputCoach(n){
+  if(_isLocked('member').locked) return;
+  if(pinDigitsCoach.length>=CONSTANTS.PIN_LEN_MEMBER)return;
+  pinDigitsCoach.push(n);updatePinDisplayCoach();if(pinDigitsCoach.length===CONSTANTS.PIN_LEN_MEMBER)checkPinCoach();
+}
 function pinBackCoach(){pinDigitsCoach.pop();updatePinDisplayCoach();document.getElementById('pin-error-coach').style.display='none';}
 function pinClearCoach(){pinDigitsCoach=[];updatePinDisplayCoach();document.getElementById('pin-error-coach').style.display='none';}
 function updatePinDisplayCoach(){
   ['pin-c1','pin-c2','pin-c3'].forEach((id,i)=>{document.getElementById(id).textContent=pinDigitsCoach[i]!==undefined?'●':'-';});
 }
 async function checkPinCoach(){
+  if(_showLockoutUI('pin-error-coach','pin-keyboard-coach','member')) return;
   const h=await sha256(pinDigitsCoach.join(''));
-  if(h===CONSTANTS.HASH_COACH){document.getElementById('pin-screen-coach').style.display='none';doLogin('member');}
-  else{recordLoginError('member');document.getElementById('pin-error-coach').style.display='block';setTimeout(()=>{pinDigitsCoach=[];updatePinDisplayCoach();document.getElementById('pin-error-coach').style.display='none';},CONSTANTS.PIN_ERROR_CLEAR_MS);}
+  if(h===CONSTANTS.HASH_COACH){
+    _onPinSuccess('member');
+    document.getElementById('pin-screen-coach').style.display='none';
+    doLogin('member');
+  } else {
+    recordLoginError('member');
+    const res=_onPinFail('member');
+    pinDigitsCoach=[];updatePinDisplayCoach();
+    const errEl=document.getElementById('pin-error-coach');
+    if(res.locked){
+      _showLockoutUI('pin-error-coach','pin-keyboard-coach','member');
+    } else {
+      const left=LOCKOUT_MAX_ATTEMPTS-res.count;
+      errEl.textContent=left<=3?`暗証番号が違います（あと${left}回でロック）`:'暗証番号が違います';
+      errEl.style.display='block';
+      setTimeout(()=>{errEl.style.display='none';errEl.textContent='暗証番号が違います';},CONSTANTS.PIN_ERROR_CLEAR_MS);
+    }
+  }
 }
 
 // ── ログインエラー集計（土〜月の週単位でFirestoreに記録）──
@@ -2640,9 +2797,10 @@ function confirmDelete(title, desc, onConfirm){
       const b3y=makeBtn('削除する','flex:1;padding:12px;border:none;border-radius:10px;background:#7f1d1d;color:#fff;font-size:14px;cursor:pointer;font-weight:500;');
       r3.appendChild(b3n);r3.appendChild(b3y);bx3.appendChild(r3);ov3.appendChild(bx3);document.body.appendChild(ov3);
       b3n.addEventListener('click',()=>ov3.remove());
-      b3y.addEventListener('click',()=>{
+      b3y.addEventListener('click',async()=>{
         const pin=document.getElementById('del-pin-input').value;
-        if(pin===CONSTANTS.DELETE_PIN){ov3.remove();onConfirm();}
+        const h=await sha256(pin);
+        if(h===CONSTANTS.HASH_DELETE){ov3.remove();onConfirm();}
         else{document.getElementById('del-pin-err').textContent='暗証番号が違います';}
       });
     });
